@@ -6,7 +6,9 @@ import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
+import android.content.SharedPreferences
 import android.os.ParcelUuid
+import kotlin.random.Random
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -37,6 +39,11 @@ class BleFtmsServer(
     
     private val connectedDevices = mutableSetOf<BluetoothDevice>()
     private val subscribedDevices = mutableMapOf<String, MutableSet<BluetoothGattCharacteristic>>()
+    
+    // SharedPreferences for storing device identifier
+    private val prefs: SharedPreferences by lazy {
+        context.getSharedPreferences("ble_ftms_server", Context.MODE_PRIVATE)
+    }
     
     // GATT characteristics
     private var indoorBikeDataCharacteristic: BluetoothGattCharacteristic? = null
@@ -196,6 +203,7 @@ class BleFtmsServer(
             BluetoothGattCharacteristic.PERMISSION_READ
         )
         deviceInfoService.addCharacteristic(manufacturerNameCharacteristic)
+        manufacturerNameCharacteristic.value = deviceName.toByteArray()
         
         // Model Number
         val modelNumberCharacteristic = BluetoothGattCharacteristic(
@@ -204,9 +212,28 @@ class BleFtmsServer(
             BluetoothGattCharacteristic.PERMISSION_READ
         )
         deviceInfoService.addCharacteristic(modelNumberCharacteristic)
-        
+        modelNumberCharacteristic.value = "Peloton FTMS Bridge".toByteArray()
+
         // Add device info service
         gattServer?.addService(deviceInfoService)
+    }
+    
+    /**
+     * Gets or generates a 4-digit device identifier that persists across app runs
+     */
+    private fun getDeviceIdentifier(): String {
+        val key = "device_identifier"
+        val existingId = prefs.getString(key, null)
+        
+        return if (existingId != null) {
+            existingId
+        } else {
+            // Generate a random 4-digit number (1000-9999)
+            val newId = Random.nextInt(1000, 10000).toString()
+            prefs.edit().putString(key, newId).apply()
+            Timber.i("Generated new device identifier: $newId")
+            newId
+        }
     }
     
     private fun startAdvertising() {
@@ -218,10 +245,14 @@ class BleFtmsServer(
                 .setTimeout(0) // Advertise indefinitely
                 .build()
             
+            // Get persistent 4-digit device identifier for manufacturer data
+            val deviceId = getDeviceIdentifier()
+            val deviceIdBytes = deviceId.toByteArray()
+            
             val data = AdvertiseData.Builder()
                 .setIncludeDeviceName(true)
-                .setIncludeTxPowerLevel(true) // Include TX power for better connection management
                 .addServiceUuid(ParcelUuid(FtmsUuids.FITNESS_MACHINE_SERVICE_UUID))
+                .addManufacturerData(0xFFFF, deviceIdBytes) // Use 0xFFFF as test/development company ID
                 .build()
                 
             // Set device name for better identification
@@ -231,7 +262,7 @@ class BleFtmsServer(
                 Timber.w(e, "Could not set device name")
             }
             
-            Timber.i("Starting BLE advertising with device name: $deviceName")
+            Timber.i("Starting BLE advertising with device name: $deviceName, device ID: $deviceId")
             bluetoothLeAdvertiser?.startAdvertising(settings, data, advertiseCallback)
         } catch (e: SecurityException) {
             Timber.e(e, "Security exception when starting advertising")
