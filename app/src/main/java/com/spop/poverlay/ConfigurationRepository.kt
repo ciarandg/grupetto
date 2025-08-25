@@ -10,7 +10,9 @@ import kotlinx.coroutines.flow.MutableStateFlow
 class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) : AutoCloseable {
 
     enum class Preferences(val key: String) {
-        ShowTimerWhenMinimized("showTimerWhenMinimized")
+        ShowTimerWhenMinimized("showTimerWhenMinimized"),
+        BleFtmsEnabled("bleFtmsEnabled"),
+        BleFtmsDeviceName("bleFtmsDeviceName")
     }
 
     companion object {
@@ -22,8 +24,12 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
     }
 
     private val mutableShowTimerWhenMinimized = MutableStateFlow(true)
+    private val mutableBleFtmsEnabled = MutableStateFlow(false)
+    private val mutableBleFtmsDeviceName = MutableStateFlow("Grupetto FTMS")
 
     val showTimerWhenMinimized = mutableShowTimerWhenMinimized
+    val bleFtmsEnabled = mutableBleFtmsEnabled
+    val bleFtmsDeviceName = mutableBleFtmsDeviceName
 
     private val sharedPreferences: SharedPreferences
 
@@ -55,11 +61,30 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
         }
     }
 
+    fun setBleFtmsEnabled(enabled: Boolean) {
+        sharedPreferences.edit {
+            putBoolean(Preferences.BleFtmsEnabled.key, enabled)
+        }
+    }
+
+    fun setBleFtmsDeviceName(name: String) {
+        sharedPreferences.edit {
+            putString(Preferences.BleFtmsDeviceName.key, name)
+        }
+    }
+
     private fun updateFromSharedPrefs() {
         mutableShowTimerWhenMinimized.value =
             sharedPreferences
                 .getBoolean(Preferences.ShowTimerWhenMinimized.key, true)
 
+        mutableBleFtmsEnabled.value =
+            sharedPreferences
+                .getBoolean(Preferences.BleFtmsEnabled.key, false)
+
+        mutableBleFtmsDeviceName.value =
+            sharedPreferences
+                .getString(Preferences.BleFtmsDeviceName.key, "Grupetto FTMS") ?: "Grupetto FTMS"
     }
 
     override fun close() {
