@@ -59,14 +59,16 @@ class ConfigurationViewModel(
     }
 
     fun onBleFtmsEnabledClicked(isChecked: Boolean) {
+        // Always update the state immediately to reflect user intent
+        configurationRepository.setBleFtmsEnabled(isChecked)
+        
         if (isChecked && !hasBluetoothPermissions()) {
-            // Request permissions first
+            // Request permissions, but keep the checkbox checked to show user intent
             val permissions = getRequiredBluetoothPermissions()
             requestBluetoothPermissions.value = permissions
             return
         }
         
-        configurationRepository.setBleFtmsEnabled(isChecked)
         if (isChecked) {
             startBleFtmsService()
         } else {
@@ -76,10 +78,11 @@ class ConfigurationViewModel(
 
     fun onBluetoothPermissionsResult(granted: Boolean) {
         if (granted) {
-            configurationRepository.setBleFtmsEnabled(true)
+            // Permissions granted - start the service (state is already set to true)
             startBleFtmsService()
             infoPopup.postValue("Bluetooth permissions granted. BLE FTMS service started.")
         } else {
+            // Permissions denied - revert the checkbox state
             configurationRepository.setBleFtmsEnabled(false)
             infoPopup.postValue("Bluetooth permissions are required for BLE FTMS functionality.")
         }

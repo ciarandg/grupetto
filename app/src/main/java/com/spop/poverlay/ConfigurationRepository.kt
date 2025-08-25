@@ -56,18 +56,21 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
     }
 
     fun setShowTimerWhenMinimized(isShown: Boolean) {
+        mutableShowTimerWhenMinimized.value = isShown
         sharedPreferences.edit {
             putBoolean(Preferences.ShowTimerWhenMinimized.key, isShown)
         }
     }
 
     fun setBleFtmsEnabled(enabled: Boolean) {
+        mutableBleFtmsEnabled.value = enabled
         sharedPreferences.edit {
             putBoolean(Preferences.BleFtmsEnabled.key, enabled)
         }
     }
 
     fun setBleFtmsDeviceName(name: String) {
+        mutableBleFtmsDeviceName.value = name
         sharedPreferences.edit {
             putString(Preferences.BleFtmsDeviceName.key, name)
         }
