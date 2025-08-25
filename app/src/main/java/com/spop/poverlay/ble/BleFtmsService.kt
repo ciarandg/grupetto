@@ -33,6 +33,7 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import timber.log.Timber
 import java.util.*
+import java.lang.System
 import kotlin.time.Duration.Companion.seconds
 
 /**
@@ -43,13 +44,21 @@ class BleFtmsService : LifecycleEnabledService() {
     companion object {
         private const val NOTIFICATION_ID = 2033
         private const val NOTIFICATION_CHANNEL_ID = "ble_ftms_service"
-        private const val UPDATE_INTERVAL_MS = 1000L // 1 second
-        
+        private const val UPDATE_INTERVAL_MS = 500L // 500ms for responsive data updates
+        private const val SMOOTHING_BUFFER_SIZE = 5 // Number of samples to average
+        private const val OUTLIER_THRESHOLD = 2.0 // Standard deviations for outlier detection
+        private var lastUpdateTime = System.currentTimeMillis()
+
         // Actions for service control
         const val ACTION_START_FTMS = "com.spop.poverlay.ble.START_FTMS"
         const val ACTION_STOP_FTMS = "com.spop.poverlay.ble.STOP_FTMS"
         const val ACTION_TOGGLE_FTMS = "com.spop.poverlay.ble.TOGGLE_FTMS"
     }
+    
+    // Data smoothing buffers
+    private val powerBuffer = mutableListOf<Float>()
+    private val cadenceBuffer = mutableListOf<Float>()
+    private val resistanceBuffer = mutableListOf<Float>()
     
     private var bleFtmsServer: BleFtmsServer? = null
     private var sensorInterface: SensorInterface? = null
@@ -185,7 +194,6 @@ class BleFtmsService : LifecycleEnabledService() {
             
             // Send initial status
             lifecycleScope.launch {
-                delay(1000) // Wait a moment for connections
                 bleFtmsServer?.sendFitnessMachineStatus(byteArrayOf(FtmsConstants.STATUS_STARTED_BY_EXTERNAL))
             }
         } else {
@@ -228,9 +236,6 @@ class BleFtmsService : LifecycleEnabledService() {
         Timber.i("Starting BLE FTMS data updates with sensor: ${sensor::class.simpleName}")
         
         dataUpdateJob = lifecycleScope.launch {
-            // First send some test data to verify connection
-            delay(2000) // Wait for potential connections
-            sendTestData()
             
             // Then start real data collection
             var dataCount = 0
@@ -243,50 +248,20 @@ class BleFtmsService : LifecycleEnabledService() {
             }.collect { (power, cadence, resistance) ->
                 dataCount++
                 if (dataCount % 10 == 0) { // Log every 10th reading to avoid spam
-                    Timber.i("BLE FTMS data #$dataCount: power=$power, cadence=$cadence, resistance=$resistance")
+                    Timber.i("BLE FTMS raw data #$dataCount: power=$power, cadence=$cadence, resistance=$resistance")
                 }
-                updateFtmsData(power, cadence, resistance)
-                delay(UPDATE_INTERVAL_MS)
-            }
-        }
-    }
+                
+                // Add data to smoothing buffers and get smoothed values
+                val smoothedPower = addToBufferAndSmooth(powerBuffer, power)
+                val smoothedCadence = addToBufferAndSmooth(cadenceBuffer, cadence)
+                val smoothedResistance = addToBufferAndSmooth(resistanceBuffer, resistance)
 
-    private fun sendTestData() {
-        Timber.i("Sending test FTMS data")
-        val testData = FtmsData(
-            instantaneousPower = 150,
-            instantaneousCadence = 80f,
-            instantaneousSpeed = 25f,
-            totalDistance = 100,
-            elapsedTime = 60,
-            heartRate = 0,
-            resistanceLevel = 50f,
-            totalEnergy = 1,
-            energyPerHour = 150,
-            energyPerMinute = 3
-        )
-        bleFtmsServer?.sendIndoorBikeData(testData)
-        
-        // Also start a periodic test data sender for debugging
-        lifecycleScope.launch {
-            var counter = 0
-            while (isActive && isServiceEnabled) {
-                delay(5000) // Every 5 seconds
-                counter++
-                val periodicTestData = FtmsData(
-                    instantaneousPower = 100 + (counter % 50),
-                    instantaneousCadence = 70f + (counter % 20),
-                    instantaneousSpeed = 20f + (counter % 10),
-                    totalDistance = counter * 10,
-                    elapsedTime = counter * 5,
-                    heartRate = 0,
-                    resistanceLevel = 40f + (counter % 30),
-                    totalEnergy = counter,
-                    energyPerHour = 120 + (counter % 30),
-                    energyPerMinute = 2 + (counter % 3)
-                )
-                Timber.i("Sending periodic test data #$counter")
-                bleFtmsServer?.sendIndoorBikeData(periodicTestData)
+                //collect all of the time, but only update FTMS every UPDATE_INTERVAL_MS
+                if (System.currentTimeMillis() - lastUpdateTime > UPDATE_INTERVAL_MS) {
+                    updateFtmsData(smoothedPower, smoothedCadence, smoothedResistance)
+                    lastUpdateTime = System.currentTimeMillis()
+                }
+                //delay(UPDATE_INTERVAL_MS)
             }
         }
     }
@@ -294,6 +269,41 @@ class BleFtmsService : LifecycleEnabledService() {
     private fun stopDataUpdates() {
         dataUpdateJob?.cancel()
         dataUpdateJob = null
+    }
+    
+    /**
+     * Adds a value to the smoothing buffer and returns the smoothed value
+     * Uses outlier detection to filter extreme values
+     */
+    private fun addToBufferAndSmooth(buffer: MutableList<Float>, newValue: Float): Float {
+        // Add new value to buffer
+        buffer.add(newValue)
+        
+        // Keep buffer at fixed size
+        if (buffer.size > SMOOTHING_BUFFER_SIZE) {
+            buffer.removeAt(0)
+        }
+        
+        // If we don't have enough samples yet, return the current value
+        if (buffer.size < 3) {
+            return newValue
+        }
+        
+        // Calculate mean and standard deviation for outlier detection
+        val mean = buffer.average().toFloat()
+        val variance = buffer.map { (it - mean) * (it - mean) }.average()
+        val stdDev = kotlin.math.sqrt(variance).toFloat()
+        
+        // Filter out outliers (values more than OUTLIER_THRESHOLD standard deviations from mean)
+        val filteredValues = buffer.filter { 
+            kotlin.math.abs(it - mean) <= OUTLIER_THRESHOLD * stdDev 
+        }
+        
+        // If we filtered out too many values, use the original buffer
+        val valuesToAverage = if (filteredValues.size >= 2) filteredValues else buffer
+        
+        // Return the average of the filtered values
+        return valuesToAverage.average().toFloat()
     }
     
     private fun updateFtmsData(power: Float, cadence: Float, resistance: Float) {
@@ -327,7 +337,7 @@ class BleFtmsService : LifecycleEnabledService() {
             energyPerMinute = energyPerMinute
         )
         
-        Timber.d("Sending FTMS data: $ftmsData")
+        Timber.d("Sending smoothed FTMS data: power=${ftmsData.instantaneousPower}W, cadence=${ftmsData.instantaneousCadence}RPM, resistance=${ftmsData.resistanceLevel}")
         
         // Send data to connected BLE devices
         bleFtmsServer?.sendIndoorBikeData(ftmsData)
@@ -340,6 +350,11 @@ class BleFtmsService : LifecycleEnabledService() {
         totalDistance = 0f
         totalEnergy = 0f
         lastPowerValue = 0f
+        
+        // Clear smoothing buffers
+        powerBuffer.clear()
+        cadenceBuffer.clear()
+        resistanceBuffer.clear()
     }
     
     private fun createNotification(isRunning: Boolean): Notification {

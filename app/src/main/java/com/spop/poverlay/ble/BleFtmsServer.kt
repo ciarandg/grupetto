@@ -79,7 +79,7 @@ class BleFtmsServer(
             }
             
             setupGattServices()
-            startAdvertising()
+            // Note: startAdvertising() will be called automatically after services are added successfully
             
             return true
         } catch (e: SecurityException) {
@@ -178,9 +178,11 @@ class BleFtmsServer(
         )
         ftmsService.addCharacteristic(supportedResistanceRangeCharacteristic)
         
-        // Add service to server
+        // Add FTMS service to server first
         gattServer?.addService(ftmsService)
-        
+    }
+    
+    private fun addDeviceInformationService() {
         // Create Device Information Service
         val deviceInfoService = BluetoothGattService(
             FtmsUuids.DEVICE_INFORMATION_SERVICE_UUID,
@@ -210,17 +212,26 @@ class BleFtmsServer(
     private fun startAdvertising() {
         try {
             val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY) // More responsive for connections
+                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH) // Higher power for better range
                 .setConnectable(true)
+                .setTimeout(0) // Advertise indefinitely
                 .build()
             
             val data = AdvertiseData.Builder()
                 .setIncludeDeviceName(true)
-                .setIncludeTxPowerLevel(false)
+                .setIncludeTxPowerLevel(true) // Include TX power for better connection management
                 .addServiceUuid(ParcelUuid(FtmsUuids.FITNESS_MACHINE_SERVICE_UUID))
                 .build()
+                
+            // Set device name for better identification
+            try {
+                bluetoothAdapter?.setName(deviceName)
+            } catch (e: SecurityException) {
+                Timber.w(e, "Could not set device name")
+            }
             
+            Timber.i("Starting BLE advertising with device name: $deviceName")
             bluetoothLeAdvertiser?.startAdvertising(settings, data, advertiseCallback)
         } catch (e: SecurityException) {
             Timber.e(e, "Security exception when starting advertising")
@@ -262,26 +273,59 @@ class BleFtmsServer(
     
     private fun notifyCharacteristicChanged(characteristic: BluetoothGattCharacteristic): Boolean {
         try {
+            if (connectedDevices.isEmpty()) {
+                Timber.v("No connected devices to notify")
+                return true
+            }
+            
             val subscribedCount = connectedDevices.count { device ->
                 subscribedDevices[device.address]?.contains(characteristic) == true
             }
             
-            Timber.d("Notifying ${connectedDevices.size} connected devices, $subscribedCount subscribed to ${characteristic.uuid}")
+            if (subscribedCount == 0) {
+                Timber.v("No devices subscribed to ${characteristic.uuid}")
+                return true
+            }
+            
+            Timber.v("Notifying ${connectedDevices.size} connected devices, $subscribedCount subscribed to ${characteristic.uuid}")
             
             var allSuccess = true
+            val devicesToRemove = mutableListOf<BluetoothDevice>()
+            
             connectedDevices.forEach { device ->
                 val deviceAddress = device.address
                 if (subscribedDevices[deviceAddress]?.contains(characteristic) == true) {
-                    val success = gattServer?.notifyCharacteristicChanged(device, characteristic, false) ?: false
-                    Timber.d("Notified device $deviceAddress: success=$success")
-                    if (!success) allSuccess = false
-                } else {
-                    Timber.d("Device $deviceAddress not subscribed to ${characteristic.uuid}")
+                    try {
+                        val success = gattServer?.notifyCharacteristicChanged(device, characteristic, false) ?: false
+                        if (!success) {
+                            Timber.w("Failed to notify device $deviceAddress")
+                            allSuccess = false
+                            // Mark device for removal if notification fails consistently
+                            devicesToRemove.add(device)
+                        }
+                    } catch (e: Exception) {
+                        Timber.w(e, "Exception notifying device $deviceAddress")
+                        devicesToRemove.add(device)
+                        allSuccess = false
+                    }
                 }
             }
+            
+            // Remove devices that failed to receive notifications
+            devicesToRemove.forEach { device ->
+                Timber.i("Removing unresponsive device: ${device.address}")
+                connectedDevices.remove(device)
+                subscribedDevices.remove(device.address)
+                _isConnected.value = connectedDevices.isNotEmpty()
+                _connectionCount.value = connectedDevices.size
+            }
+            
             return allSuccess
         } catch (e: SecurityException) {
             Timber.e(e, "Security exception when notifying characteristic changed")
+            return false
+        } catch (e: Exception) {
+            Timber.e(e, "Unexpected exception when notifying characteristic changed")
             return false
         }
     }
@@ -307,26 +351,82 @@ class BleFtmsServer(
     }
     
     private val gattServerCallback = object : BluetoothGattServerCallback() {
+        override fun onServiceAdded(status: Int, service: BluetoothGattService?) {
+            if (status == BluetoothGatt.GATT_SUCCESS) {
+                Timber.i("Service added successfully: ${service?.uuid}")
+                service?.let {
+                    when (it.uuid) {
+                        FtmsUuids.FITNESS_MACHINE_SERVICE_UUID -> {
+                            Timber.d("FTMS service added, now adding Device Information Service")
+                            addDeviceInformationService()
+                        }
+                        FtmsUuids.DEVICE_INFORMATION_SERVICE_UUID -> {
+                            Timber.d("Device Information Service added, setup complete - starting advertising")
+                            startAdvertising()
+                        }
+                    }
+                }
+            } else {
+                Timber.e("Failed to add service: ${service?.uuid}, status: $status")
+                // If FTMS service failed, we can't continue
+                if (service?.uuid == FtmsUuids.FITNESS_MACHINE_SERVICE_UUID) {
+                    Timber.e("Critical: FTMS service failed to add - stopping server")
+                    stopServer()
+                } else if (service?.uuid == FtmsUuids.DEVICE_INFORMATION_SERVICE_UUID) {
+                    // Device info service is optional, continue with advertising
+                    Timber.w("Device Information Service failed to add, but continuing with advertising")
+                    startAdvertising()
+                }
+            }
+        }
+        
         override fun onConnectionStateChange(device: BluetoothDevice?, status: Int, newState: Int) {
             device?.let {
                 synchronized(this@BleFtmsServer) {
+                    val statusDescription = when (status) {
+                        BluetoothGatt.GATT_SUCCESS -> "SUCCESS"
+                        BluetoothGatt.GATT_FAILURE -> "FAILURE"
+                        0x13 -> "REMOTE_USER_TERMINATED" // Common disconnection reason
+                        0x16 -> "CONNECTION_TIMEOUT"
+                        0x08 -> "CONNECTION_TERMINATED_BY_LOCAL_HOST"
+                        else -> "UNKNOWN($status)"
+                    }
+                    
                     when (newState) {
                         BluetoothProfile.STATE_CONNECTED -> {
-                            connectedDevices.add(it)
-                            subscribedDevices[it.address] = mutableSetOf()
-                            _isConnected.value = true
-                            _connectionCount.value = connectedDevices.size
-                            Timber.i("Device connected: ${it.address}, status: $status")
+                            if (status == BluetoothGatt.GATT_SUCCESS) {
+                                connectedDevices.add(it)
+                                subscribedDevices[it.address] = mutableSetOf()
+                                _isConnected.value = true
+                                _connectionCount.value = connectedDevices.size
+                                Timber.i("Device connected successfully: ${it.address}")
+                            } else {
+                                Timber.w("Device connection failed: ${it.address}, status: $statusDescription")
+                            }
                         }
                         BluetoothProfile.STATE_DISCONNECTED -> {
+                            val wasConnected = connectedDevices.contains(it)
                             connectedDevices.remove(it)
                             subscribedDevices.remove(it.address)
                             _isConnected.value = connectedDevices.isNotEmpty()
                             _connectionCount.value = connectedDevices.size
-                            Timber.i("Device disconnected: ${it.address}, status: $status")
+                            
+                            if (wasConnected) {
+                                Timber.i("Device disconnected: ${it.address}, reason: $statusDescription")
+                            } else {
+                                Timber.d("Device connection attempt failed: ${it.address}, reason: $statusDescription")
+                            }
+                        }
+                        BluetoothProfile.STATE_CONNECTING -> {
+                            Timber.d("Device connecting: ${it.address}")
+                        }
+                        BluetoothProfile.STATE_DISCONNECTING -> {
+                            Timber.d("Device disconnecting: ${it.address}")
                         }
                     }
                 }
+            } ?: run {
+                Timber.w("Connection state change with null device, status: $status, newState: $newState")
             }
         }
         
@@ -394,33 +494,49 @@ class BleFtmsServer(
             var status = BluetoothGatt.GATT_SUCCESS
             
             try {
-                Timber.d("Descriptor write request from ${device?.address}: ${descriptor?.uuid}, value=${value?.contentToString()}")
+                Timber.d("Descriptor write request from ${device?.address}: descriptor=${descriptor?.uuid}, characteristic=${descriptor?.characteristic?.uuid}, value=${value?.contentToString()}")
                 
-                if (descriptor?.uuid == FtmsUuids.CLIENT_CHARACTERISTIC_CONFIG_UUID) {
+                if (descriptor == null) {
+                    Timber.w("Descriptor is null in write request")
+                    status = BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED
+                } else if (descriptor.uuid == FtmsUuids.CLIENT_CHARACTERISTIC_CONFIG_UUID) {
                     val characteristic = descriptor.characteristic
                     val deviceAddress = device?.address
                     
                     if (value != null && value.size >= 2 && deviceAddress != null && characteristic != null) {
-                        // Set the descriptor value first
-                        descriptor.value = value
-                        
-                        val enabled = (value[0].toInt() and 0x01) != 0 || (value[0].toInt() and 0x02) != 0
-                        
-                        // Ensure device exists in subscribed devices map
-                        if (subscribedDevices[deviceAddress] == null) {
-                            subscribedDevices[deviceAddress] = mutableSetOf()
+                        // Validate that this descriptor belongs to one of our characteristics
+                        val isValidDescriptor = when (characteristic.uuid) {
+                            FtmsUuids.INDOOR_BIKE_DATA_UUID,
+                            FtmsUuids.FITNESS_MACHINE_STATUS_UUID,
+                            FtmsUuids.FITNESS_MACHINE_CONTROL_POINT_UUID -> true
+                            else -> false
                         }
                         
-                        if (enabled) {
-                            subscribedDevices[deviceAddress]?.add(characteristic)
-                            Timber.i("Device $deviceAddress subscribed to ${characteristic.uuid}")
+                        if (!isValidDescriptor) {
+                            Timber.w("Descriptor write request for unknown characteristic: ${characteristic.uuid}")
+                            status = BluetoothGatt.GATT_WRITE_NOT_PERMITTED
                         } else {
-                            subscribedDevices[deviceAddress]?.remove(characteristic)
-                            Timber.i("Device $deviceAddress unsubscribed from ${characteristic.uuid}")
+                            // Set the descriptor value first
+                            descriptor.value = value
+                            
+                            val enabled = (value[0].toInt() and 0x01) != 0 || (value[0].toInt() and 0x02) != 0
+                            
+                            // Ensure device exists in subscribed devices map
+                            if (subscribedDevices[deviceAddress] == null) {
+                                subscribedDevices[deviceAddress] = mutableSetOf()
+                            }
+                            
+                            if (enabled) {
+                                subscribedDevices[deviceAddress]?.add(characteristic)
+                                Timber.i("Device $deviceAddress subscribed to ${characteristic.uuid}")
+                            } else {
+                                subscribedDevices[deviceAddress]?.remove(characteristic)
+                                Timber.i("Device $deviceAddress unsubscribed from ${characteristic.uuid}")
+                            }
                         }
                     } else {
                         status = BluetoothGatt.GATT_INVALID_ATTRIBUTE_LENGTH
-                        Timber.w("Invalid descriptor write request: value=${value?.contentToString()}, size=${value?.size}")
+                        Timber.w("Invalid descriptor write request: value=${value?.contentToString()}, size=${value?.size}, device=$deviceAddress, characteristic=$characteristic")
                     }
                 } else {
                     status = BluetoothGatt.GATT_WRITE_NOT_PERMITTED
