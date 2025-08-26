@@ -26,6 +26,13 @@ jobs:
     - name: Grant execute permission for gradlew
       run: chmod +x gradlew
 
+    - name: Setup debug keystore for release
+      run: |
+        # Create a debug keystore for release builds (for CI/CD purposes)
+        mkdir -p ~/.android
+        echo "Creating debug keystore for release signing..."
+        keytool -genkey -v -keystore ~/.android/debug.keystore -storepass android -alias androiddebugkey -keypass android -keyalg RSA -keysize 2048 -validity 10000 -dname "CN=Android Debug,O=Android,C=US"
+
     - name: Extract version info
       id: version_info
       run: |
@@ -72,18 +79,15 @@ jobs:
         echo "Updated build.gradle versions:"
         grep -E "(versionCode|versionName)" app/build.gradle
 
-    - name: Build debug APK
-      run: ./gradlew assembleDebug
-
     - name: Build release APK
       run: ./gradlew assembleRelease
 
-    - name: Upload debug APK as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: debug-apk
-        path: app/build/outputs/apk/debug/app-debug.apk
-
+    - name: List APK outputs
+      run: |
+        echo "Listing all APK files generated:"
+        find app/build/outputs/apk -name "*.apk" -type f || echo "No APK files found"
+        echo "Directory structure:"
+        ls -la app/build/outputs/apk/ || echo "APK output directory not found"
     - name: Upload release APK as artifact
       uses: actions/upload-artifact@v4
       with:
@@ -162,6 +166,18 @@ jobs:
       with:
         name: release-apk
         path: ./
+
+    - name: Find and prepare APK
+      id: find_apk
+      run: |
+        # Find the APK file (could be signed or unsigned)
+        APK_FILE=$(find . -name "*.apk" -type f | head -1)
+        if [ -z "$APK_FILE" ]; then
+          echo "No APK file found!"
+          exit 1
+        fi
+        echo "Found APK: $APK_FILE"
+        echo "APK_PATH=$APK_FILE" >> $GITHUB_OUTPUT
 
     - name: Create/Update tag
       run: |
