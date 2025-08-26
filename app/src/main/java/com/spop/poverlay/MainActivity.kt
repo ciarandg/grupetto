@@ -11,6 +11,7 @@ import android.view.Gravity
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
@@ -43,6 +44,9 @@ class MainActivity : ComponentActivity() {
         }
         viewModel.requestOverlayPermission.observe(this) {
             requestScreenPermission()
+        }
+        viewModel.requestBluetoothPermissions.observe(this) { permissions ->
+            requestBluetoothPermissions(permissions)
         }
         viewModel.requestRestart.observe(this) {
             restartGrupetto()
@@ -99,11 +103,21 @@ class MainActivity : ComponentActivity() {
             }
         }
 
+    private val bluetoothPermissionRequest =
+        registerForActivityResult(RequestMultiplePermissions()) { permissions ->
+            val allGranted = permissions.values.all { it }
+            viewModel.onBluetoothPermissionsResult(allGranted)
+        }
+
     private fun requestScreenPermission() = Intent(
         "android.settings.action.MANAGE_OVERLAY_PERMISSION",
         Uri.parse("package:${packageName}")
     ).apply {
         overlayPermissionRequest.launch(this)
+    }
+
+    private fun requestBluetoothPermissions(permissions: Array<String>) {
+        bluetoothPermissionRequest.launch(permissions)
     }
 }
 
@@ -112,6 +126,6 @@ class MainActivity : ComponentActivity() {
 @Composable
 fun DefaultPreview() {
     PTONOverlayTheme {
-        Configuration()
+        // Preview placeholder - actual ConfigurationPage requires ViewModel
     }
 }
