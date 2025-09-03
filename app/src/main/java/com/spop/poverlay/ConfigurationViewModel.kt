@@ -10,7 +10,15 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import com.spop.poverlay.ble.BleFtmsService
+import androidx.lifecycle.LifecycleOwner
+import com.spop.poverlay.sensor.interfaces.PelotonBikePlusSensorInterface
+import com.spop.poverlay.sensor.interfaces.PelotonBikeSensorInterface
+import com.spop.poverlay.sensor.interfaces.SensorInterface
+import com.spop.poverlay.util.IsBikePlus
+import com.spop.poverlay.util.IsRunningOnPeloton
+import com.spop.poverlay.ble.BleServer
+import com.spop.poverlay.ble.DeviceInformationService
+import com.spop.poverlay.ble.FitnessMachineService
 import com.spop.poverlay.overlay.OverlayService
 import com.spop.poverlay.releases.Release
 import com.spop.poverlay.releases.ReleaseChecker
@@ -21,7 +29,8 @@ import timber.log.Timber
 class ConfigurationViewModel(
     application: Application,
     private val configurationRepository: ConfigurationRepository,
-    private val releaseChecker: ReleaseChecker
+    private val releaseChecker: ReleaseChecker,
+    private val bleServer: BleServer
 ) : AndroidViewModel(application) {
     val finishActivity = MutableLiveData<Unit>()
     val requestOverlayPermission = MutableLiveData<Unit>()
@@ -61,18 +70,32 @@ class ConfigurationViewModel(
     fun onBleFtmsEnabledClicked(isChecked: Boolean) {
         // Always update the state immediately to reflect user intent
         configurationRepository.setBleFtmsEnabled(isChecked)
-        
+
         if (isChecked && !hasBluetoothPermissions()) {
             // Request permissions, but keep the checkbox checked to show user intent
             val permissions = getRequiredBluetoothPermissions()
             requestBluetoothPermissions.value = permissions
             return
         }
-        
+
         if (isChecked) {
-            startBleFtmsService()
+            val sensorInterface = if (IsRunningOnPeloton) {
+                if (IsBikePlus) {
+                    PelotonBikePlusSensorInterface(getApplication())
+                } else {
+                    PelotonBikeSensorInterface(getApplication())
+                }
+            } else {
+                // For testing on an emulator
+                object : SensorInterface {
+                    override val cadence = kotlinx.coroutines.flow.MutableStateFlow(0f)
+                    override val power = kotlinx.coroutines.flow.MutableStateFlow(0f)
+                    override val resistance = kotlinx.coroutines.flow.MutableStateFlow(0f)
+                }
+            }
+            bleServer.start(listOf(FitnessMachineService(sensorInterface, bleServer), DeviceInformationService()))
         } else {
-            stopBleFtmsService()
+            bleServer.stop()
         }
     }
 
@@ -109,34 +132,7 @@ class ConfigurationViewModel(
         configurationRepository.setBleFtmsDeviceName(name)
     }
 
-    private fun startBleFtmsService() {
-        if (hasBluetoothPermissions()) {
-            try {
-                val intent = Intent(getApplication(), BleFtmsService::class.java).apply {
-                    action = BleFtmsService.ACTION_START_FTMS
-                }
-                ContextCompat.startForegroundService(getApplication(), intent)
-                Timber.i("Started BLE FTMS service")
-            } catch (e: Exception) {
-                Timber.e(e, "Failed to start BLE FTMS service")
-                infoPopup.postValue("Failed to start BLE FTMS service: ${e.message}")
-            }
-        } else {
-            infoPopup.postValue("Missing Bluetooth permissions for BLE FTMS")
-        }
-    }
-
-    private fun stopBleFtmsService() {
-        try {
-            val intent = Intent(getApplication(), BleFtmsService::class.java).apply {
-                action = BleFtmsService.ACTION_STOP_FTMS
-            }
-            getApplication<Application>().startService(intent)
-            Timber.i("Stopped BLE FTMS service")
-        } catch (e: Exception) {
-            Timber.e(e, "Failed to stop BLE FTMS service")
-        }
-    }
+    
 
     private fun hasBluetoothPermissions(): Boolean {
         val context = getApplication<Application>()
