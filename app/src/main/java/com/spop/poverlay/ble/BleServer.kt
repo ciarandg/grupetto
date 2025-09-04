@@ -113,13 +113,15 @@ class BleServer(
 
         // Wheel
         val wheelSizeMeters = 2.127f // 700c x 28, typical
-        val speedMps = speedKmh?.let { it / 3.6f }
-        if (speedMps != null && speedMps > 0f) {
-            val wheelRpm = (speedMps / wheelSizeMeters) * 60f
-            if (wheelRpm > 0f) {
-                val wheelRevPeriodTicks = (60.0 * 1024.0) / wheelRpm
-                val wheelRevsDelta = wheelRpm * (deltaMs / 60000.0)
-                cscWheelResidual += wheelRevsDelta
+    // speedKmh must be in km/h; convert to m/s for wheel RPM calculation
+    var speedMps = speedKmh?.let { it / 3.6f }
+    if (speedMps != null && speedMps > 0f) {
+        speedMps = speedMps.div(2)
+        val wheelRpm = (speedMps / wheelSizeMeters) * 60f
+        if (wheelRpm > 0f) {
+            val wheelRevPeriodTicks = (60.0 * 1024.0) / wheelRpm
+            val wheelRevsDelta = wheelRpm * (deltaMs / 60000.0)
+            cscWheelResidual += wheelRevsDelta
                 val toAdd = kotlin.math.floor(cscWheelResidual).toInt()
                 if (toAdd > 0) {
                     cscWheelResidual -= toAdd
@@ -169,7 +171,7 @@ class BleServer(
     private fun setupServices() {
         servicesToRegister.addAll(
                 listOf(
-                        FitnessMachineService(this),
+                        //FitnessMachineService(this),
                         CyclingPowerService(this),
                         CyclingSpeedAndCadenceService(this),
                         DeviceInformationService(this)
@@ -431,9 +433,10 @@ class BleServer(
                     buffers?.let { data ->
                         val avgCadence = data.cadence.average().toFloat()
                         val avgPower = data.power.average().toFloat()
-                        val avgSpeed = data.speed.average().toFloat()
+                        // sensorInterface.speed is in mph; convert to km/h for shared wheel calculations
+                        val avgSpeed = (data.speed.average().toFloat() * 1.60934f)
                         val avgResistance = data.resistance.average().toFloat()
-                        // Update shared CSC counters (no wheel speed available here -> pass null)
+                        // Update shared CSC counters using km/h for wheel and RPM for crank
                         updateWheelAndCrankRev(avgSpeed, avgCadence)
                         registeredServices.forEach {
                             it.onSensorDataUpdated(avgCadence, avgPower, avgSpeed, avgResistance)
