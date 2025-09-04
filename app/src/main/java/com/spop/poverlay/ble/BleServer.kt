@@ -68,6 +68,62 @@ class BleServer(
     private val servicesToRegister = LinkedList<BaseBleService>()
     private var currentlyRegisteringService: BaseBleService? = null
 
+    // CSC shared state (used by multiple services)
+    // Wheel values: cumulative (uint32) and last event time (uint16, 1/1024s). Only updated if speed provided.
+    var cscCumulativeWheelRev: Long = 0L
+        private set
+    var cscLastWheelEvtTime: Int = 0 // uint16 ticks (wrap at 65536)
+        private set
+    // Crank values: cumulative (uint16) and last event time (uint16, 1/1024s)
+    var cscCumulativeCrankRev: Int = 0
+        private set
+    var cscLastCrankEvtTime: Int = 0 // uint16 ticks (wrap at 65536)
+        private set
+
+    // Update CSC wheel and crank revolutions using the C++ algorithm
+    // speedKmh: if provided, wheel data will be updated; cadenceRpm always used for crank
+    private var cscLastUpdateMs: Long = android.os.SystemClock.elapsedRealtime()
+    private var cscCrankResidual: Double = 0.0
+    private var cscWheelResidual: Double = 0.0
+    fun updateWheelAndCrankRev(speedKmh: Float?, cadenceRpm: Float) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val deltaMs = (now - cscLastUpdateMs).coerceAtLeast(0)
+        cscLastUpdateMs = now
+
+        // Wheel
+        val wheelSizeMeters = 2.127f // 700c x 28, typical
+        val speedMps = speedKmh?.let { it / 3.6f }
+        if (speedMps != null && speedMps > 0f) {
+            val wheelRpm = (speedMps / wheelSizeMeters) * 60f
+            if (wheelRpm > 0f) {
+                val wheelRevPeriodTicks = (60.0 * 1024.0) / wheelRpm
+                val wheelRevsDelta = wheelRpm * (deltaMs / 60000.0)
+                cscWheelResidual += wheelRevsDelta
+                val toAdd = kotlin.math.floor(cscWheelResidual).toInt()
+                if (toAdd > 0) {
+                    cscWheelResidual -= toAdd
+                    cscCumulativeWheelRev = (cscCumulativeWheelRev + toAdd) and 0xFFFF_FFFFL
+                    val ticksAdd = (wheelRevPeriodTicks * toAdd).toInt().coerceAtLeast(1)
+                    cscLastWheelEvtTime = (cscLastWheelEvtTime + ticksAdd) and 0xFFFF
+                }
+            }
+        }
+
+        // Crank
+        if (cadenceRpm > 0f) {
+            val crankRevPeriodTicks = (60.0 * 1024.0) / cadenceRpm
+            val crankRevsDelta = cadenceRpm * (deltaMs / 60000.0)
+            cscCrankResidual += crankRevsDelta
+            val toAdd = kotlin.math.floor(cscCrankResidual).toInt()
+            if (toAdd > 0) {
+                cscCrankResidual -= toAdd
+                cscCumulativeCrankRev = (cscCumulativeCrankRev + toAdd) and 0xFFFF
+                val ticksAdd = (crankRevPeriodTicks * toAdd).toInt().coerceAtLeast(1)
+                cscLastCrankEvtTime = (cscLastCrankEvtTime + ticksAdd) and 0xFFFF
+            }
+        }
+    }
+
     fun start() {
         val bluetoothAdapter = bluetoothManager.adapter
         if (bluetoothAdapter == null) {
@@ -271,6 +327,8 @@ class BleServer(
                         val avgCadence = cadence.average().toFloat()
                         val avgPower = power.average().toFloat()
                         val avgResistance = resistance.average().toFloat()
+                        // Update shared CSC counters (no wheel speed available here -> pass null)
+                        updateWheelAndCrankRev(null, avgCadence)
                         registeredServices.forEach { it.onSensorDataUpdated(avgCadence, avgPower, avgResistance) }
                     }
                 }

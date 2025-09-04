@@ -4,7 +4,14 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
 
+@Suppress("DEPRECATION")
 class CyclingSpeedAndCadenceService(server: BleServer) : BaseBleService(server) {
+
+    // State for crank data
+    private var cumulativeCrankRevolutions: Int = 0
+    private var lastCrankEventTime1024: Int = 0 // uint16 in 1/1024s
+    private var lastUpdateElapsedMs: Long = android.os.SystemClock.elapsedRealtime()
+    private var crankFractionalRevs: Double = 0.0
 
     private val measurementCharacteristic = BluetoothGattCharacteristic(
         CyclingSpeedAndCadenceConstants.MeasurementUUID,
@@ -24,12 +31,14 @@ class CyclingSpeedAndCadenceService(server: BleServer) : BaseBleService(server) 
         BluetoothGattCharacteristic.PROPERTY_READ,
         BluetoothGattCharacteristic.PERMISSION_READ
     ).apply {
+        // Match C++ server: advertise wheel and crank support
         val flags = CyclingSpeedAndCadenceConstants.FeatureFlags.WheelRevolutionDataSupported or
-                CyclingSpeedAndCadenceConstants.FeatureFlags.CrankRevolutionDataSupported or
-                CyclingSpeedAndCadenceConstants.FeatureFlags.MultipleSensorLocationsSupported
-        value = byteArrayOf(
-            (flags and 0xFF).toByte(),
-            (flags shr 8 and 0xFF).toByte()
+                CyclingSpeedAndCadenceConstants.FeatureFlags.CrankRevolutionDataSupported
+        setValue(
+            byteArrayOf(
+                (flags and 0xFF).toByte(),
+                (flags shr 8 and 0xFF).toByte()
+            )
         )
     }
 
@@ -42,27 +51,35 @@ class CyclingSpeedAndCadenceService(server: BleServer) : BaseBleService(server) 
     }
 
     override fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float) {
-        val flags = CyclingSpeedAndCadenceConstants.MeasurementFlags.WheelRevolutionDataPresent or
-                CyclingSpeedAndCadenceConstants.MeasurementFlags.CrankRevolutionDataPresent
+        // Build measurement from server's shared counters
+        val hasWheel = server.cscLastWheelEvtTime != 0 || server.cscCumulativeWheelRev != 0L
+        val hasCrank = server.cscLastCrankEvtTime != 0 || server.cscCumulativeCrankRev != 0
 
-        val cumulativeWheelRevolutions = (power * 10).toLong()
-        val lastWheelEventTime = (System.currentTimeMillis() / 1000).toInt()
-        val cumulativeCrankRevolutions = (cadence * 60).toInt()
-        val lastCrankEventTime = (System.currentTimeMillis() / 1000).toInt()
+        var flags = 0
+        if (hasWheel) flags = flags or CyclingSpeedAndCadenceConstants.MeasurementFlags.WheelRevolutionDataPresent
+        if (hasCrank) flags = flags or CyclingSpeedAndCadenceConstants.MeasurementFlags.CrankRevolutionDataPresent
 
-        measurementCharacteristic.value = byteArrayOf(
-            flags.toByte(),
-            (cumulativeWheelRevolutions and 0xFF).toByte(),
-            (cumulativeWheelRevolutions shr 8 and 0xFF).toByte(),
-            (cumulativeWheelRevolutions shr 16 and 0xFF).toByte(),
-            (cumulativeWheelRevolutions shr 24 and 0xFF).toByte(),
-            (lastWheelEventTime and 0xFF).toByte(),
-            (lastWheelEventTime shr 8 and 0xFF).toByte(),
-            (cumulativeCrankRevolutions and 0xFF).toByte(),
-            (cumulativeCrankRevolutions shr 8 and 0xFF).toByte(),
-            (lastCrankEventTime and 0xFF).toByte(),
-            (lastCrankEventTime shr 8 and 0xFF).toByte()
-        )
+        val bytes = ArrayList<Byte>(1 + (if (hasWheel) 6 else 0) + (if (hasCrank) 4 else 0))
+        bytes.add(flags.toByte())
+        if (hasWheel) {
+            val wheelRevs = server.cscCumulativeWheelRev
+            val wheelTime = server.cscLastWheelEvtTime
+            bytes.add((wheelRevs and 0xFF).toByte())
+            bytes.add(((wheelRevs shr 8) and 0xFF).toByte())
+            bytes.add(((wheelRevs shr 16) and 0xFF).toByte())
+            bytes.add(((wheelRevs shr 24) and 0xFF).toByte())
+            bytes.add((wheelTime and 0xFF).toByte())
+            bytes.add(((wheelTime shr 8) and 0xFF).toByte())
+        }
+        if (hasCrank) {
+            val crankRevs = server.cscCumulativeCrankRev
+            val crankTime = server.cscLastCrankEvtTime
+            bytes.add((crankRevs and 0xFF).toByte())
+            bytes.add(((crankRevs shr 8) and 0xFF).toByte())
+            bytes.add((crankTime and 0xFF).toByte())
+            bytes.add(((crankTime shr 8) and 0xFF).toByte())
+        }
+        measurementCharacteristic.setValue(bytes.toByteArray())
 
         for (device in connectedDevices) {
             server.notifyCharacteristicChanged(device, measurementCharacteristic, false)
