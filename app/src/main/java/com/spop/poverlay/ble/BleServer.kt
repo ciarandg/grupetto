@@ -8,13 +8,13 @@ import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
 import com.spop.poverlay.sensor.interfaces.SensorInterface
+import java.util.*
 import kotlinx.coroutines.*
-import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.collect
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
-import java.util.*
 
 // Listener for sensor data updates
 interface SensorDataListener {
@@ -34,29 +34,49 @@ abstract class BaseBleService(val server: BleServer) : SensorDataListener {
         connectedDevices.remove(device)
     }
 
-    open fun onCharacteristicWriteRequest(device: BluetoothDevice, requestId: Int, characteristic: BluetoothGattCharacteristic, preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?) {
+    open fun onCharacteristicWriteRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            characteristic: BluetoothGattCharacteristic,
+            preparedWrite: Boolean,
+            responseNeeded: Boolean,
+            offset: Int,
+            value: ByteArray?
+    ) {
         if (responseNeeded) {
             server.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
         }
     }
 
-    open fun onDescriptorWriteRequest(device: BluetoothDevice, requestId: Int, descriptor: BluetoothGattDescriptor, preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?) {
+    open fun onDescriptorWriteRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            descriptor: BluetoothGattDescriptor,
+            preparedWrite: Boolean,
+            responseNeeded: Boolean,
+            offset: Int,
+            value: ByteArray?
+    ) {
         descriptor.value = value
         if (responseNeeded) {
             server.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
         }
     }
 
-    open fun onDescriptorReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, descriptor: BluetoothGattDescriptor) {
+    open fun onDescriptorReadRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            offset: Int,
+            descriptor: BluetoothGattDescriptor
+    ) {
         server.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, descriptor.value)
     }
 }
 
-
 class BleServer(
-    private val context: Context,
-    private val bluetoothManager: BluetoothManager,
-    private val sensorInterface: SensorInterface
+        private val context: Context,
+        private val bluetoothManager: BluetoothManager,
+        private val sensorInterface: SensorInterface
 ) : BluetoothGattServerCallback(), CoroutineScope {
 
     override val coroutineContext = SupervisorJob() + Dispatchers.IO
@@ -69,7 +89,8 @@ class BleServer(
     private var currentlyRegisteringService: BaseBleService? = null
 
     // CSC shared state (used by multiple services)
-    // Wheel values: cumulative (uint32) and last event time (uint16, 1/1024s). Only updated if speed provided.
+    // Wheel values: cumulative (uint32) and last event time (uint16, 1/1024s). Only updated if
+    // speed provided.
     var cscCumulativeWheelRev: Long = 0L
         private set
     var cscLastWheelEvtTime: Int = 0 // uint16 ticks (wrap at 65536)
@@ -147,12 +168,12 @@ class BleServer(
 
     private fun setupServices() {
         servicesToRegister.addAll(
-            listOf(
-               // FitnessMachineService(this),
-               // CyclingPowerService(this),
-                CyclingSpeedAndCadenceService(this),
-                DeviceInformationService(this)
-            )
+                listOf(
+                        FitnessMachineService(this),
+                        CyclingPowerService(this),
+                        CyclingSpeedAndCadenceService(this),
+                        DeviceInformationService(this)
+                )
         )
         registerNextService()
     }
@@ -189,7 +210,11 @@ class BleServer(
         }
     }
 
-    fun notifyCharacteristicChanged(device: BluetoothDevice, characteristic: BluetoothGattCharacteristic, confirm: Boolean) {
+    fun notifyCharacteristicChanged(
+            device: BluetoothDevice,
+            characteristic: BluetoothGattCharacteristic,
+            confirm: Boolean
+    ) {
         try {
             gattServer?.notifyCharacteristicChanged(device, characteristic, confirm)
         } catch (e: SecurityException) {
@@ -197,7 +222,13 @@ class BleServer(
         }
     }
 
-    fun sendResponse(device: BluetoothDevice?, requestId: Int, status: Int, offset: Int, value: ByteArray?) {
+    fun sendResponse(
+            device: BluetoothDevice?,
+            requestId: Int,
+            status: Int,
+            offset: Int,
+            value: ByteArray?
+    ) {
         try {
             gattServer?.sendResponse(device, requestId, status, offset, value)
         } catch (e: SecurityException) {
@@ -208,14 +239,14 @@ class BleServer(
     private fun startAdvertising() {
         val serviceUuids = registeredServices.map { ParcelUuid(it.service.uuid) }
         try {
-            val settings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-                .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
-                .setConnectable(true)
-                .build()
+            val settings =
+                    AdvertiseSettings.Builder()
+                            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
+                            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+                            .setConnectable(true)
+                            .build()
 
-            val dataBuilder = AdvertiseData.Builder()
-                .setIncludeDeviceName(true)
+            val dataBuilder = AdvertiseData.Builder().setIncludeDeviceName(true)
 
             for (uuid in serviceUuids) {
                 dataBuilder.addServiceUuid(uuid)
@@ -235,19 +266,22 @@ class BleServer(
         }
     }
 
-    private val advertisingCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-            Timber.i("BLE advertising started")
-        }
+    private val advertisingCallback =
+            object : AdvertiseCallback() {
+                override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                    Timber.i("BLE advertising started")
+                }
 
-        override fun onStartFailure(errorCode: Int) {
-            Timber.e("BLE advertising failed: $errorCode")
-        }
-    }
+                override fun onStartFailure(errorCode: Int) {
+                    Timber.e("BLE advertising failed: $errorCode")
+                }
+            }
 
     override fun onServiceAdded(status: Int, service: BluetoothGattService) {
         if (currentlyRegisteringService?.service?.uuid != service.uuid) {
-            Timber.e("Mismatched service added callback! Expected ${currentlyRegisteringService?.service?.uuid}, got ${service.uuid}")
+            Timber.e(
+                    "Mismatched service added callback! Expected ${currentlyRegisteringService?.service?.uuid}, got ${service.uuid}"
+            )
             servicesToRegister.clear()
             currentlyRegisteringService = null
             return
@@ -274,11 +308,33 @@ class BleServer(
         return registeredServices.firstOrNull { it.service.uuid == uuid }
     }
 
-    override fun onCharacteristicWriteRequest(device: BluetoothDevice, requestId: Int, characteristic: BluetoothGattCharacteristic, preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?) {
-        findServiceForCharacteristic(characteristic.service.uuid)?.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
+    override fun onCharacteristicWriteRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            characteristic: BluetoothGattCharacteristic,
+            preparedWrite: Boolean,
+            responseNeeded: Boolean,
+            offset: Int,
+            value: ByteArray?
+    ) {
+        findServiceForCharacteristic(characteristic.service.uuid)
+                ?.onCharacteristicWriteRequest(
+                        device,
+                        requestId,
+                        characteristic,
+                        preparedWrite,
+                        responseNeeded,
+                        offset,
+                        value
+                )
     }
 
-    override fun onCharacteristicReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, characteristic: BluetoothGattCharacteristic) {
+    override fun onCharacteristicReadRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            offset: Int,
+            characteristic: BluetoothGattCharacteristic
+    ) {
         val service = findServiceForCharacteristic(characteristic.service.uuid)
         if (service == null) {
             sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, offset, null)
@@ -287,12 +343,35 @@ class BleServer(
         sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, characteristic.value)
     }
 
-    override fun onDescriptorReadRequest(device: BluetoothDevice, requestId: Int, offset: Int, descriptor: BluetoothGattDescriptor) {
-        findServiceForCharacteristic(descriptor.characteristic.service.uuid)?.onDescriptorReadRequest(device, requestId, offset, descriptor)
+    override fun onDescriptorReadRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            offset: Int,
+            descriptor: BluetoothGattDescriptor
+    ) {
+        findServiceForCharacteristic(descriptor.characteristic.service.uuid)
+                ?.onDescriptorReadRequest(device, requestId, offset, descriptor)
     }
 
-    override fun onDescriptorWriteRequest(device: BluetoothDevice, requestId: Int, descriptor: BluetoothGattDescriptor, preparedWrite: Boolean, responseNeeded: Boolean, offset: Int, value: ByteArray?) {
-        findServiceForCharacteristic(descriptor.characteristic.service.uuid)?.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value)
+    override fun onDescriptorWriteRequest(
+            device: BluetoothDevice,
+            requestId: Int,
+            descriptor: BluetoothGattDescriptor,
+            preparedWrite: Boolean,
+            responseNeeded: Boolean,
+            offset: Int,
+            value: ByteArray?
+    ) {
+        findServiceForCharacteristic(descriptor.characteristic.service.uuid)
+                ?.onDescriptorWriteRequest(
+                        device,
+                        requestId,
+                        descriptor,
+                        preparedWrite,
+                        responseNeeded,
+                        offset,
+                        value
+                )
     }
 
     private fun startSensorDataUpdates() {
@@ -304,32 +383,47 @@ class BleServer(
             val resistanceBuffer = mutableListOf<Float>()
 
             launch {
-                combine(sensorInterface.cadence, sensorInterface.power, sensorInterface.resistance) { cadence, power, resistance ->
-                    mutex.withLock {
-                        cadenceBuffer.add(cadence)
-                        powerBuffer.add(power)
-                        resistanceBuffer.add(resistance)
-                    }
-                }.collect()
+                combine(
+                                sensorInterface.cadence,
+                                sensorInterface.power,
+                                sensorInterface.resistance
+                        ) { cadence, power, resistance ->
+                            mutex.withLock {
+                                cadenceBuffer.add(cadence)
+                                powerBuffer.add(power)
+                                resistanceBuffer.add(resistance)
+                            }
+                        }
+                        .collect()
             }
 
             launch {
                 while (isActive) {
                     delay(300)
-                    val buffers = mutex.withLock {
-                        if (cadenceBuffer.isEmpty()) null else Triple(cadenceBuffer.toList(), powerBuffer.toList(), resistanceBuffer.toList()).also {
-                            cadenceBuffer.clear()
-                            powerBuffer.clear()
-                            resistanceBuffer.clear()
-                        }
-                    }
+                    val buffers =
+                            mutex.withLock {
+                                if (cadenceBuffer.isEmpty()) null
+                                else
+                                        Triple(
+                                                        cadenceBuffer.toList(),
+                                                        powerBuffer.toList(),
+                                                        resistanceBuffer.toList()
+                                                )
+                                                .also {
+                                                    cadenceBuffer.clear()
+                                                    powerBuffer.clear()
+                                                    resistanceBuffer.clear()
+                                                }
+                            }
                     buffers?.let { (cadence, power, resistance) ->
                         val avgCadence = cadence.average().toFloat()
                         val avgPower = power.average().toFloat()
                         val avgResistance = resistance.average().toFloat()
                         // Update shared CSC counters (no wheel speed available here -> pass null)
                         updateWheelAndCrankRev(null, avgCadence)
-                        registeredServices.forEach { it.onSensorDataUpdated(avgCadence, avgPower, avgResistance) }
+                        registeredServices.forEach {
+                            it.onSensorDataUpdated(avgCadence, avgPower, avgResistance)
+                        }
                     }
                 }
             }
