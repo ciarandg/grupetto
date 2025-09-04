@@ -1,1 +1,0 @@
-My goal is to create 9 files in the ble folder. One for the BleServer and related components, and two files for each of the four services (service definition and Constants/constants). The implementation must be easily extendable and correct from the ground up.

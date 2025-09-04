@@ -8,55 +8,74 @@ import com.spop.poverlay.ble.DeviceInformationConstants
 
 class DeviceInformationService(server: BleServer) : BaseBleService(server) {
 
-    override val service = BluetoothGattService(
-        DeviceInformationConstants.ServiceUUID,
-        BluetoothGattService.SERVICE_TYPE_PRIMARY
-    ).apply {
-        addCharacteristic(
-            BluetoothGattCharacteristic(
-                DeviceInformationConstants.ManufacturerNameUUID,
-                BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            )
-        )
-        addCharacteristic(
-            BluetoothGattCharacteristic(
-                DeviceInformationConstants.ModelNumberUUID,
-                BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            )
-        )
-        addCharacteristic(
-            BluetoothGattCharacteristic(
-                DeviceInformationConstants.SerialNumberUUID,
-                BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            )
-        )
-        addCharacteristic(
-            BluetoothGattCharacteristic(
-                DeviceInformationConstants.HardwareRevisionUUID,
-                BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            )
-        )
-        addCharacteristic(
-            BluetoothGattCharacteristic(
-                DeviceInformationConstants.FirmwareRevisionUUID,
-                BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            )
-        )
-        addCharacteristic(
-            BluetoothGattCharacteristic(
-                DeviceInformationConstants.SoftwareRevisionUUID,
-                BluetoothGattCharacteristic.PROPERTY_READ,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            )
-        )
-    }
+    override val service =
+            BluetoothGattService(
+                            DeviceInformationConstants.ServiceUUID,
+                            BluetoothGattService.SERVICE_TYPE_PRIMARY
+                    )
+                    .apply {
+                        addCharacteristic(
+                                BluetoothGattCharacteristic(
+                                        DeviceInformationConstants.ManufacturerNameUUID,
+                                        BluetoothGattCharacteristic.PROPERTY_READ,
+                                        BluetoothGattCharacteristic.PERMISSION_READ
+                                )
+                        )
+                        addCharacteristic(
+                                BluetoothGattCharacteristic(
+                                        DeviceInformationConstants.ModelNumberUUID,
+                                        BluetoothGattCharacteristic.PROPERTY_READ,
+                                        BluetoothGattCharacteristic.PERMISSION_READ
+                                )
+                        )
+                        addCharacteristic(
+                                BluetoothGattCharacteristic(
+                                        DeviceInformationConstants.SerialNumberUUID,
+                                        BluetoothGattCharacteristic.PROPERTY_READ,
+                                        BluetoothGattCharacteristic.PERMISSION_READ
+                                )
+                        )
+                        addCharacteristic(
+                                BluetoothGattCharacteristic(
+                                        DeviceInformationConstants.HardwareRevisionUUID,
+                                        BluetoothGattCharacteristic.PROPERTY_READ,
+                                        BluetoothGattCharacteristic.PERMISSION_READ
+                                )
+                        )
+                        addCharacteristic(
+                                BluetoothGattCharacteristic(
+                                        DeviceInformationConstants.FirmwareRevisionUUID,
+                                        BluetoothGattCharacteristic.PROPERTY_READ,
+                                        BluetoothGattCharacteristic.PERMISSION_READ
+                                )
+                        )
+                        addCharacteristic(
+                                BluetoothGattCharacteristic(
+                                        DeviceInformationConstants.SoftwareRevisionUUID,
+                                        BluetoothGattCharacteristic.PROPERTY_READ,
+                                        BluetoothGattCharacteristic.PERMISSION_READ
+                                )
+                        )
+                    }
+    override fun onSensorDataUpdated(
+            cadence: Float,
+            power: Float,
+            speed: Float,
+            resistance: Float
+    ) {
 
-    override fun onSensorDataUpdated(cadence: Float, power: Float, speed: Float, resistance: Float) {
-        service.getCharacteristic(DeviceInformationConstants.SoftwareRevisionUUID)?.setValue("test".toByteArray())
+        // Populate characteristic values (UTF-8 strings)
+        service.getCharacteristic(DeviceInformationConstants.ManufacturerNameUUID)
+                ?.setValue("Grupetto".toByteArray(Charsets.UTF_8))
+        service.getCharacteristic(DeviceInformationConstants.ModelNumberUUID)
+                ?.setValue("Grupetto FTMS".toByteArray(Charsets.UTF_8))
+        service.getCharacteristic(DeviceInformationConstants.SerialNumberUUID)
+                ?.setValue("GP-0001".toByteArray(Charsets.UTF_8))
+        service.getCharacteristic(DeviceInformationConstants.HardwareRevisionUUID)
+                ?.setValue("1.0".toByteArray(Charsets.UTF_8))
+        service.getCharacteristic(DeviceInformationConstants.FirmwareRevisionUUID)
+                ?.setValue("1.0.0".toByteArray(Charsets.UTF_8))
+        service.getCharacteristic(DeviceInformationConstants.SoftwareRevisionUUID)
+                ?.setValue("1.0.0".toByteArray(Charsets.UTF_8))
     }
 }
