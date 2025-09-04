@@ -4,52 +4,52 @@ import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.os.Build
 import android.health.connect.datatypes.Device
-import com.spop.poverlay.ble.DeviceInformationCharacteristics
+import com.spop.poverlay.ble.DeviceInformationConstants
 
 class DeviceInformationService(server: BleServer) : BaseBleService(server) {
 
     override val service = BluetoothGattService(
-        DeviceInformationCharacteristics.ServiceUUID,
+        DeviceInformationConstants.ServiceUUID,
         BluetoothGattService.SERVICE_TYPE_PRIMARY
     ).apply {
         addCharacteristic(
             BluetoothGattCharacteristic(
-                DeviceInformationCharacteristics.ManufacturerNameUUID,
+                DeviceInformationConstants.ManufacturerNameUUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
             )
         )
         addCharacteristic(
             BluetoothGattCharacteristic(
-                DeviceInformationCharacteristics.ModelNumberUUID,
+                DeviceInformationConstants.ModelNumberUUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
             )
         )
         addCharacteristic(
             BluetoothGattCharacteristic(
-                DeviceInformationCharacteristics.SerialNumberUUID,
+                DeviceInformationConstants.SerialNumberUUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
             )
         )
         addCharacteristic(
             BluetoothGattCharacteristic(
-                DeviceInformationCharacteristics.HardwareRevisionUUID,
+                DeviceInformationConstants.HardwareRevisionUUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
             )
         )
         addCharacteristic(
             BluetoothGattCharacteristic(
-                DeviceInformationCharacteristics.FirmwareRevisionUUID,
+                DeviceInformationConstants.FirmwareRevisionUUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
             )
         )
         addCharacteristic(
             BluetoothGattCharacteristic(
-                DeviceInformationCharacteristics.SoftwareRevisionUUID,
+                DeviceInformationConstants.SoftwareRevisionUUID,
                 BluetoothGattCharacteristic.PROPERTY_READ,
                 BluetoothGattCharacteristic.PERMISSION_READ
             )
@@ -57,6 +57,6 @@ class DeviceInformationService(server: BleServer) : BaseBleService(server) {
     }
 
     override fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float) {
-        service.getCharacteristic(DeviceInformationCharacteristics.SoftwareRevisionUUID)?.setValue("test".toByteArray())
+        service.getCharacteristic(DeviceInformationConstants.SoftwareRevisionUUID)?.setValue("test".toByteArray())
     }
 }

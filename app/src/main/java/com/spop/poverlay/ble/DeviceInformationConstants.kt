@@ -2,7 +2,7 @@ package com.spop.poverlay.ble
 
 import java.util.UUID
 
-object DeviceInformationCharacteristics {
+object DeviceInformationConstants{
     val ServiceUUID: UUID = UUID.fromString("0000180a-0000-1000-8000-00805f9b34fb")
     val ManufacturerNameUUID: UUID = UUID.fromString("00002a29-0000-1000-8000-00805f9b34fb")
     val ModelNumberUUID: UUID = UUID.fromString("00002a24-0000-1000-8000-00805f9b34fb")

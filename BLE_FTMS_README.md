@@ -23,7 +23,7 @@ This integration adds Bluetooth Low Energy Fitness Machine Service (FTMS) capabi
 - **Enable BLE FTMS**: Toggle in the main configuration screen
 - **Device Name**: Customize the Bluetooth device name (default: "Grupetto FTMS")
 
-## Supported FTMS Characteristics
+## Supported FTMS Constants
 
 - **Fitness Machine Feature** (0x2ACC): Advertises supported features
 - **Indoor Bike Data** (0x2AD2): Real-time bike data (power, cadence, speed, resistance)
@@ -73,7 +73,7 @@ This integration adds Bluetooth Low Energy Fitness Machine Service (FTMS) capabi
 - **Device not appearing**: Ensure Bluetooth is enabled and permissions are granted
 - **Connection issues**: Try restarting the BLE service or restarting the app
 - **Data not updating**: Check that the Peloton sensor interface is working properly
-- **Multiple connections**: Some apps may require exclusive access to certain characteristics
+- **Multiple connections**: Some apps may require exclusive access to certain Constants
 
 ## Technical Notes
 

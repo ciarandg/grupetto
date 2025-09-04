@@ -92,8 +92,8 @@ class BleServer(
     private fun setupServices() {
         servicesToRegister.addAll(
             listOf(
-                FitnessMachineService(this),
-                CyclingPowerService(this),
+               // FitnessMachineService(this),
+               // CyclingPowerService(this),
                 CyclingSpeedAndCadenceService(this),
                 DeviceInformationService(this)
             )

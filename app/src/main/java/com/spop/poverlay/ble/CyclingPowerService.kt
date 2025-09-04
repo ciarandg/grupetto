@@ -7,25 +7,25 @@ import android.bluetooth.BluetoothGattService
 class CyclingPowerService(server: BleServer) : BaseBleService(server) {
 
     private val measurementCharacteristic = BluetoothGattCharacteristic(
-        CyclingPowerCharacteristics.MeasurementUUID,
+        CyclingPowerConstants.MeasurementUUID,
         BluetoothGattCharacteristic.PROPERTY_NOTIFY,
         BluetoothGattCharacteristic.PERMISSION_READ
     ).apply {
         addDescriptor(
             BluetoothGattDescriptor(
-                CyclingPowerCharacteristics.ClientCharacteristicConfigurationUUID,
+                CyclingPowerConstants.ClientCharacteristicConfigurationUUID,
                 BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ
             )
         )
     }
 
     private val featureCharacteristic = BluetoothGattCharacteristic(
-        CyclingPowerCharacteristics.FeatureUUID,
+        CyclingPowerConstants.FeatureUUID,
         BluetoothGattCharacteristic.PROPERTY_READ,
         BluetoothGattCharacteristic.PERMISSION_READ
     ).apply {
-        val flags = CyclingPowerCharacteristics.FeatureFlags.CrankRevolutionDataSupported or
-                CyclingPowerCharacteristics.FeatureFlags.WheelRevolutionDataSupported
+        val flags = CyclingPowerConstants.FeatureFlags.CrankRevolutionDataSupported or
+                CyclingPowerConstants.FeatureFlags.WheelRevolutionDataSupported
         value = byteArrayOf(
             (flags and 0xFF).toByte(),
             (flags shr 8 and 0xFF).toByte(),
@@ -35,13 +35,13 @@ class CyclingPowerService(server: BleServer) : BaseBleService(server) {
     }
 
     private val sensorLocationCharacteristic = BluetoothGattCharacteristic(
-        CyclingPowerCharacteristics.SensorLocationUUID,
+        CyclingPowerConstants.SensorLocationUUID,
         BluetoothGattCharacteristic.PROPERTY_READ,
         BluetoothGattCharacteristic.PERMISSION_READ
     ).apply { value = byteArrayOf(0x05) } // Left Crank
 
     override val service = BluetoothGattService(
-        CyclingPowerCharacteristics.ServiceUUID,
+        CyclingPowerConstants.ServiceUUID,
         BluetoothGattService.SERVICE_TYPE_PRIMARY
     ).apply {
         addCharacteristic(measurementCharacteristic)
@@ -50,10 +50,13 @@ class CyclingPowerService(server: BleServer) : BaseBleService(server) {
     }
 
     override fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float) {
-        val flags = CyclingPowerCharacteristics.MeasurementFlags.CrankRevolutionDataPresent
+        val flags = CyclingPowerConstants.MeasurementFlags.CrankRevolutionDataPresent or
+                CyclingPowerConstants.MeasurementFlags.WheelRevolutionDataPresent
         val powerValue = power.toInt()
         val crankRevolutions = (cadence * 60).toInt()
         val lastCrankEventTime = (System.currentTimeMillis() / 1000).toInt()
+        val wheelRevolutions = 0 // Placeholder
+        val lastWheelEventTime = (System.currentTimeMillis() / 1000).toInt()
 
         measurementCharacteristic.value = byteArrayOf(
             (flags and 0xFF).toByte(),
@@ -63,7 +66,13 @@ class CyclingPowerService(server: BleServer) : BaseBleService(server) {
             (crankRevolutions and 0xFF).toByte(),
             (crankRevolutions shr 8 and 0xFF).toByte(),
             (lastCrankEventTime and 0xFF).toByte(),
-            (lastCrankEventTime shr 8 and 0xFF).toByte()
+            (lastCrankEventTime shr 8 and 0xFF).toByte(),
+            (wheelRevolutions and 0xFF).toByte(),
+            (wheelRevolutions shr 8 and 0xFF).toByte(),
+            (wheelRevolutions shr 16 and 0xFF).toByte(),
+            (wheelRevolutions shr 24 and 0xFF).toByte(),
+            (lastWheelEventTime and 0xFF).toByte(),
+            (lastWheelEventTime shr 8 and 0xFF).toByte()
         )
 
         for (device in connectedDevices) {

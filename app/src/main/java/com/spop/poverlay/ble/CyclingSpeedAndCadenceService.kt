@@ -7,25 +7,26 @@ import android.bluetooth.BluetoothGattService
 class CyclingSpeedAndCadenceService(server: BleServer) : BaseBleService(server) {
 
     private val measurementCharacteristic = BluetoothGattCharacteristic(
-        CyclingSpeedAndCadenceCharacteristics.MeasurementUUID,
+        CyclingSpeedAndCadenceConstants.MeasurementUUID,
         BluetoothGattCharacteristic.PROPERTY_NOTIFY,
         BluetoothGattCharacteristic.PERMISSION_READ
     ).apply {
         addDescriptor(
             BluetoothGattDescriptor(
-                CyclingSpeedAndCadenceCharacteristics.ClientCharacteristicConfigurationUUID,
+                CyclingSpeedAndCadenceConstants.ClientCharacteristicConfigurationUUID,
                 BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ
             )
         )
     }
 
     private val featureCharacteristic = BluetoothGattCharacteristic(
-        CyclingSpeedAndCadenceCharacteristics.FeatureUUID,
+        CyclingSpeedAndCadenceConstants.FeatureUUID,
         BluetoothGattCharacteristic.PROPERTY_READ,
         BluetoothGattCharacteristic.PERMISSION_READ
     ).apply {
-        val flags = CyclingSpeedAndCadenceCharacteristics.FeatureFlags.WheelRevolutionDataSupported or
-                CyclingSpeedAndCadenceCharacteristics.FeatureFlags.CrankRevolutionDataSupported
+        val flags = CyclingSpeedAndCadenceConstants.FeatureFlags.WheelRevolutionDataSupported or
+                CyclingSpeedAndCadenceConstants.FeatureFlags.CrankRevolutionDataSupported or
+                CyclingSpeedAndCadenceConstants.FeatureFlags.MultipleSensorLocationsSupported
         value = byteArrayOf(
             (flags and 0xFF).toByte(),
             (flags shr 8 and 0xFF).toByte()
@@ -33,7 +34,7 @@ class CyclingSpeedAndCadenceService(server: BleServer) : BaseBleService(server) 
     }
 
     override val service = BluetoothGattService(
-        CyclingSpeedAndCadenceCharacteristics.ServiceUUID,
+        CyclingSpeedAndCadenceConstants.ServiceUUID,
         BluetoothGattService.SERVICE_TYPE_PRIMARY
     ).apply {
         addCharacteristic(measurementCharacteristic)
@@ -41,8 +42,8 @@ class CyclingSpeedAndCadenceService(server: BleServer) : BaseBleService(server) 
     }
 
     override fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float) {
-        val flags = CyclingSpeedAndCadenceCharacteristics.MeasurementFlags.WheelRevolutionDataPresent or
-                CyclingSpeedAndCadenceCharacteristics.MeasurementFlags.CrankRevolutionDataPresent
+        val flags = CyclingSpeedAndCadenceConstants.MeasurementFlags.WheelRevolutionDataPresent or
+                CyclingSpeedAndCadenceConstants.MeasurementFlags.CrankRevolutionDataPresent
 
         val cumulativeWheelRevolutions = (power * 10).toLong()
         val lastWheelEventTime = (System.currentTimeMillis() / 1000).toInt()
