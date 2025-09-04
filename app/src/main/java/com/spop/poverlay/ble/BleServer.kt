@@ -15,6 +15,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import timber.log.Timber
+import kotlin.math.abs
 
 // Listener for sensor data updates
 interface SensorDataListener {
@@ -431,15 +432,24 @@ class BleServer(
                                                 }
                             }
                     buffers?.let { data ->
-                        val avgCadence = data.cadence.average().toFloat()
-                        val avgPower = data.power.average().toFloat()
-                        // sensorInterface.speed is in mph; convert to km/h for shared wheel calculations
-                        val avgSpeed = (data.speed.average().toFloat() * 1.60934f)
-                        val avgResistance = data.resistance.average().toFloat()
+                        // Robust outlier filtering per metric, then light exponential smoothing
+                        val rCadence = robustAverage(data.cadence)
+                        val rPower = robustAverage(data.power)
+                        val rSpeedMph = robustAverage(data.speed) // mph
+                        val rResistance = robustAverage(data.resistance)
+
+                        val sCadence = smoothCadence(rCadence)
+                        val sPower = smoothPower(rPower)
+                        val sSpeedMph = smoothSpeed(rSpeedMph)
+                        val sResistance = smoothResistance(rResistance)
+
+                        // Convert mph -> km/h for wheel calculations
+                        val sSpeedKmh = sSpeedMph * 1.60934f
                         // Update shared CSC counters using km/h for wheel and RPM for crank
-                        updateWheelAndCrankRev(avgSpeed, avgCadence)
+                        updateWheelAndCrankRev(sSpeedKmh, sCadence)
+                        // Notify services with smoothed values (speed remains mph; services handle their unit needs)
                         registeredServices.forEach {
-                            it.onSensorDataUpdated(avgCadence, avgPower, avgSpeed, avgResistance)
+                            it.onSensorDataUpdated(sCadence, sPower, sSpeedMph, sResistance)
                         }
                     }
                 }
@@ -449,5 +459,67 @@ class BleServer(
 
     private fun stopSensorDataUpdates() {
         sensorDataJob?.cancel()
+    }
+
+    // --- Robust filtering and smoothing helpers ---
+    // Median of a non-empty Float list
+    private fun medianOf(values: List<Float>): Float {
+        val sorted = values.sorted()
+        val n = sorted.size
+        return if (n % 2 == 1) sorted[n / 2] else ((sorted[n / 2 - 1] + sorted[n / 2]) / 2f)
+    }
+
+    // Compute a robust average by removing outliers using a MAD-based threshold
+    private fun robustAverage(values: List<Float>): Float {
+        val finite = values.filter { it.isFinite() }
+        if (finite.isEmpty()) return 0f
+        if (finite.size < 3) return finite.average().toFloat()
+
+        val med = medianOf(finite)
+        val deviations = finite.map { abs(it - med) }
+        val mad = medianOf(deviations)
+
+        // If MAD is ~0 (stable), fall back to light trimming of extremes
+        if (mad == 0f) {
+            val sorted = finite.sorted()
+            return when {
+                sorted.size >= 5 -> sorted.subList(1, sorted.size - 1).average().toFloat()
+                else -> sorted.average().toFloat()
+            }
+        }
+
+        // 3-sigma rule on MAD with consistency constant
+        val threshold = 3.0f * 1.4826f * mad
+        val inliers = finite.filter { abs(it - med) <= threshold }
+        return if (inliers.isNotEmpty()) inliers.average().toFloat() else med
+    }
+
+    // Exponential smoothing states and helpers
+    private var smoothedCadence: Float? = null
+    private var smoothedPower: Float? = null
+    private var smoothedSpeedMph: Float? = null
+    private var smoothedResistance: Float? = null
+
+    private fun smooth(prev: Float?, value: Float, alpha: Float): Float =
+        if (prev == null) value else (alpha * value + (1f - alpha) * prev)
+
+    private fun smoothCadence(v: Float, alpha: Float = 0.35f): Float {
+        smoothedCadence = smooth(smoothedCadence, v, alpha)
+        return smoothedCadence!!
+    }
+
+    private fun smoothPower(v: Float, alpha: Float = 0.25f): Float {
+        smoothedPower = smooth(smoothedPower, v, alpha)
+        return smoothedPower!!
+    }
+
+    private fun smoothSpeed(vMph: Float, alpha: Float = 0.4f): Float {
+        smoothedSpeedMph = smooth(smoothedSpeedMph, vMph, alpha)
+        return smoothedSpeedMph!!
+    }
+
+    private fun smoothResistance(v: Float, alpha: Float = 0.35f): Float {
+        smoothedResistance = smooth(smoothedResistance, v, alpha)
+        return smoothedResistance!!
     }
 }
