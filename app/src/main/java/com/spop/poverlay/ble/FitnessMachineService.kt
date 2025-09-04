@@ -1,78 +1,101 @@
 package com.spop.poverlay.ble
 
-import android.bluetooth.BluetoothDevice
 import android.bluetooth.BluetoothGattCharacteristic
+import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.BluetoothGattService
-import com.spop.poverlay.sensor.interfaces.SensorInterface
-import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.SupervisorJob
-import kotlinx.coroutines.flow.combine
-import kotlinx.coroutines.launch
-import java.util.*
 
-class FitnessMachineService(private val sensorInterface: SensorInterface, private val server: BleServer) : BleService, CoroutineScope {
-
-    override val coroutineContext = SupervisorJob() + Dispatchers.IO
-
-    private val connectedDevices = mutableSetOf<BluetoothDevice>()
+class FitnessMachineService(server: BleServer) : BaseBleService(server) {
 
     private val indoorBikeDataCharacteristic = BluetoothGattCharacteristic(
-        FtmsConstants.INDOOR_BIKE_DATA_UUID,
+        FitnessMachineCharacteristics.IndoorBikeDataUUID,
         BluetoothGattCharacteristic.PROPERTY_NOTIFY,
         BluetoothGattCharacteristic.PERMISSION_READ
-    )
+    ).apply {
+        addDescriptor(
+            BluetoothGattDescriptor(
+                FitnessMachineCharacteristics.ClientCharacteristicConfigurationUUID,
+                BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ
+            )
+        )
+    }
 
-    private val fitnessMachineFeatureCharacteristic = BluetoothGattCharacteristic(
-        FtmsConstants.FITNESS_MACHINE_FEATURE_UUID,
+    private val featureCharacteristic = BluetoothGattCharacteristic(
+        FitnessMachineCharacteristics.FeatureUUID,
         BluetoothGattCharacteristic.PROPERTY_READ,
         BluetoothGattCharacteristic.PERMISSION_READ
+    ).apply {
+        val flags = FitnessMachineCharacteristics.FeatureFlags.CadenceSupported or
+                FitnessMachineCharacteristics.FeatureFlags.PowerMeasurementSupported or
+                FitnessMachineCharacteristics.FeatureFlags.ResistanceLevelSupported
+        value = byteArrayOf(
+            (flags and 0xFF).toByte(),
+            (flags shr 8 and 0xFF).toByte(),
+            (flags shr 16 and 0xFF).toByte(),
+            (flags shr 24 and 0xFF).toByte()
+        )
+    }
+
+    private val controlPointCharacteristic = BluetoothGattCharacteristic(
+        FitnessMachineCharacteristics.ControlPointUUID,
+        BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_INDICATE,
+        BluetoothGattCharacteristic.PERMISSION_WRITE
     )
 
+    private val supportedResistanceRangeCharacteristic = BluetoothGattCharacteristic(
+        FitnessMachineCharacteristics.SupportedResistanceRangeUUID,
+        BluetoothGattCharacteristic.PROPERTY_READ,
+        BluetoothGattCharacteristic.PERMISSION_READ
+    ).apply {
+        value = byteArrayOf(0, 100, 1) // Min 0, Max 100, Step 1
+    }
+
+    private val trainingStatusCharacteristic = BluetoothGattCharacteristic(
+        FitnessMachineCharacteristics.TrainingStatusUUID,
+        BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+        BluetoothGattCharacteristic.PERMISSION_READ
+    ).apply { value = byteArrayOf(0x01) } // Idle
+
     override val service = BluetoothGattService(
-        FtmsConstants.FTMS_SERVICE_UUID,
+        FitnessMachineCharacteristics.ServiceUUID,
         BluetoothGattService.SERVICE_TYPE_PRIMARY
     ).apply {
         addCharacteristic(indoorBikeDataCharacteristic)
-        addCharacteristic(fitnessMachineFeatureCharacteristic)
+        addCharacteristic(featureCharacteristic)
+        addCharacteristic(controlPointCharacteristic)
+        addCharacteristic(supportedResistanceRangeCharacteristic)
+        addCharacteristic(trainingStatusCharacteristic)
     }
 
-    init {
-        launch {
-            combine(
-                sensorInterface.cadence,
-                sensorInterface.power,
-                sensorInterface.resistance
-            ) { cadence, power, resistance ->
-                val indoorBikeData = formatIndoorBikeData(cadence, power, resistance)
-                indoorBikeDataCharacteristic.value = indoorBikeData
-                for (device in connectedDevices) {
-                    server.notifyCharacteristicChanged(device, indoorBikeDataCharacteristic, false)
-                }
-            }.collect {}
-        }
-    }
+    override fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float) {
+        val flags = FitnessMachineCharacteristics.IndoorBikeDataFlags.InstantaneousCadencePresent or
+                FitnessMachineCharacteristics.IndoorBikeDataFlags.InstantaneousPowerPresent or
+                FitnessMachineCharacteristics.IndoorBikeDataFlags.ResistanceLevelPresent
 
-    override fun onConnected(device: BluetoothDevice) {
-        connectedDevices.add(device)
-    }
-
-    override fun onDisconnected(device: BluetoothDevice) {
-        connectedDevices.remove(device)
-    }
-
-    private fun formatIndoorBikeData(cadence: Float, power: Float, resistance: Float): ByteArray {
-        val flags = 0x4004
         val cadenceValue = (cadence * 2).toInt()
         val powerValue = power.toInt()
+        val resistanceValue = resistance.toInt()
 
-        return byteArrayOf(
+        indoorBikeDataCharacteristic.value = byteArrayOf(
             (flags and 0xFF).toByte(),
             (flags shr 8 and 0xFF).toByte(),
             (cadenceValue and 0xFF).toByte(),
             (cadenceValue shr 8 and 0xFF).toByte(),
             (powerValue and 0xFF).toByte(),
-            (powerValue shr 8 and 0xFF).toByte()
+            (powerValue shr 8 and 0xFF).toByte(),
+            (resistanceValue and 0xFF).toByte(),
+            (resistanceValue shr 8 and 0xFF).toByte()
         )
+
+        for (device in connectedDevices) {
+            server.notifyCharacteristicChanged(device, indoorBikeDataCharacteristic, false)
+        }
+
+        val newStatus = if (cadence > 0) 0x0D.toByte() else 0x01.toByte()
+        if (trainingStatusCharacteristic.value.first() != newStatus) {
+            trainingStatusCharacteristic.value = byteArrayOf(newStatus)
+            for (device in connectedDevices) {
+                server.notifyCharacteristicChanged(device, trainingStatusCharacteristic, false)
+            }
+        }
     }
 }

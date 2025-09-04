@@ -1,6 +1,8 @@
 package com.spop.poverlay
 
 import android.app.Application
+import android.bluetooth.BluetoothManager
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -10,15 +12,6 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
-import androidx.lifecycle.LifecycleOwner
-import com.spop.poverlay.sensor.interfaces.PelotonBikePlusSensorInterface
-import com.spop.poverlay.sensor.interfaces.PelotonBikeSensorInterface
-import com.spop.poverlay.sensor.interfaces.SensorInterface
-import com.spop.poverlay.util.IsBikePlus
-import com.spop.poverlay.util.IsRunningOnPeloton
-import com.spop.poverlay.ble.BleServer
-import com.spop.poverlay.ble.DeviceInformationService
-import com.spop.poverlay.ble.FitnessMachineService
 import com.spop.poverlay.overlay.OverlayService
 import com.spop.poverlay.releases.Release
 import com.spop.poverlay.releases.ReleaseChecker
@@ -30,7 +23,6 @@ class ConfigurationViewModel(
     application: Application,
     private val configurationRepository: ConfigurationRepository,
     private val releaseChecker: ReleaseChecker,
-    private val bleServer: BleServer
 ) : AndroidViewModel(application) {
     val finishActivity = MutableLiveData<Unit>()
     val requestOverlayPermission = MutableLiveData<Unit>()
@@ -39,20 +31,24 @@ class ConfigurationViewModel(
     val showPermissionInfo = mutableStateOf(false)
     val infoPopup = MutableLiveData<String>()
 
-    // Map of release names to if they're the currently installed one
     var latestRelease = mutableStateOf<Release?>(null)
 
     val showTimerWhenMinimized
         get() = configurationRepository.showTimerWhenMinimized
 
-    val bleFtmsEnabled
-        get() = configurationRepository.bleFtmsEnabled
+    val bleTxEnabled
+        get() = configurationRepository.bleTxEnabled
 
     val bleFtmsDeviceName
         get() = configurationRepository.bleFtmsDeviceName
 
+    private val bleServer = (application as GrupettoApplication).bleServer
+
     init {
         updatePermissionState()
+        if (bleTxEnabled.value && hasBluetoothPermissions()) {
+            bleServer.start()
+        }
     }
 
     private fun updatePermissionState() {
@@ -67,33 +63,14 @@ class ConfigurationViewModel(
         configurationRepository.setShowTimerWhenMinimized(isChecked)
     }
 
-    fun onBleFtmsEnabledClicked(isChecked: Boolean) {
-        // Always update the state immediately to reflect user intent
-        configurationRepository.setBleFtmsEnabled(isChecked)
-
-        if (isChecked && !hasBluetoothPermissions()) {
-            // Request permissions, but keep the checkbox checked to show user intent
-            val permissions = getRequiredBluetoothPermissions()
-            requestBluetoothPermissions.value = permissions
-            return
-        }
-
+    fun onBleTxEnabledClicked(isChecked: Boolean) {
+        configurationRepository.setBleTxEnabled(isChecked)
         if (isChecked) {
-            val sensorInterface = if (IsRunningOnPeloton) {
-                if (IsBikePlus) {
-                    PelotonBikePlusSensorInterface(getApplication())
-                } else {
-                    PelotonBikeSensorInterface(getApplication())
-                }
+            if (hasBluetoothPermissions()) {
+                bleServer.start()
             } else {
-                // For testing on an emulator
-                object : SensorInterface {
-                    override val cadence = kotlinx.coroutines.flow.MutableStateFlow(0f)
-                    override val power = kotlinx.coroutines.flow.MutableStateFlow(0f)
-                    override val resistance = kotlinx.coroutines.flow.MutableStateFlow(0f)
-                }
+                requestBluetoothPermissions.value = getRequiredBluetoothPermissions()
             }
-            bleServer.start(listOf(FitnessMachineService(sensorInterface, bleServer), DeviceInformationService()))
         } else {
             bleServer.stop()
         }
@@ -101,68 +78,60 @@ class ConfigurationViewModel(
 
     fun onBluetoothPermissionsResult(granted: Boolean) {
         if (granted) {
-            // Permissions granted - start the service (state is already set to true)
-            startBleFtmsService()
-            infoPopup.postValue("Bluetooth permissions granted. BLE FTMS service started.")
+            bleServer.start()
+            infoPopup.postValue("Bluetooth permissions granted. BLE service started.")
         } else {
-            // Permissions denied - revert the checkbox state
-            configurationRepository.setBleFtmsEnabled(false)
-            infoPopup.postValue("Bluetooth permissions are required for BLE FTMS functionality.")
+            configurationRepository.setBleTxEnabled(false)
+            infoPopup.postValue("Bluetooth permissions are required for BLE functionality.")
         }
     }
 
     private fun getRequiredBluetoothPermissions(): Array<String> {
         val permissions = mutableListOf<String>()
-        
+
         // Always required permissions
         permissions.add(android.Manifest.permission.BLUETOOTH)
         permissions.add(android.Manifest.permission.BLUETOOTH_ADMIN)
         permissions.add(android.Manifest.permission.ACCESS_FINE_LOCATION)
-        
+
         // Android 12+ permissions
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             permissions.add(android.Manifest.permission.BLUETOOTH_ADVERTISE)
             permissions.add(android.Manifest.permission.BLUETOOTH_CONNECT)
         }
-        
+
         return permissions.toTypedArray()
     }
 
-    fun onBleFtmsDeviceNameChanged(name: String) {
-        configurationRepository.setBleFtmsDeviceName(name)
-    }
-
-    
-
     private fun hasBluetoothPermissions(): Boolean {
         val context = getApplication<Application>()
-        
+
         val bluetoothPermission = ContextCompat.checkSelfPermission(
             context, android.Manifest.permission.BLUETOOTH
         ) == PackageManager.PERMISSION_GRANTED
-        
+
         val bluetoothAdminPermission = ContextCompat.checkSelfPermission(
             context, android.Manifest.permission.BLUETOOTH_ADMIN
         ) == PackageManager.PERMISSION_GRANTED
-        
+
         val locationPermission = ContextCompat.checkSelfPermission(
             context, android.Manifest.permission.ACCESS_FINE_LOCATION
         ) == PackageManager.PERMISSION_GRANTED
-        
+
         // Check for Android 12+ permissions
         var bluetoothAdvertisePermission = true
         var bluetoothConnectPermission = true
-        
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             bluetoothAdvertisePermission = ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.BLUETOOTH_ADVERTISE
             ) == PackageManager.PERMISSION_GRANTED
-            
+
             bluetoothConnectPermission = ContextCompat.checkSelfPermission(
                 context, android.Manifest.permission.BLUETOOTH_CONNECT
             ) == PackageManager.PERMISSION_GRANTED
         }
-        
+
         return bluetoothPermission && bluetoothAdminPermission && locationPermission &&
                 bluetoothAdvertisePermission && bluetoothConnectPermission
     }
@@ -199,6 +168,13 @@ class ConfigurationViewModel(
                 .onFailure {
                     Timber.e(it, "failed to fetch release info")
                 }
+        }
+    }
+
+    fun onAppResumed() {
+        if (bleTxEnabled.value && !hasBluetoothPermissions()) {
+            val permissions = getRequiredBluetoothPermissions()
+            requestBluetoothPermissions.value = permissions
         }
     }
 

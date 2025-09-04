@@ -21,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
-import com.spop.poverlay.ble.BleServer
 import com.spop.poverlay.releases.ReleaseChecker
 import com.spop.poverlay.ui.theme.PTONOverlayTheme
 import kotlinx.coroutines.CoroutineScope
@@ -35,12 +34,10 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val bleServer = BleServer(applicationContext, getSystemService(BLUETOOTH_SERVICE) as BluetoothManager)
-                viewModel =
+        viewModel =
             ConfigurationViewModel(
                 application, ConfigurationRepository(applicationContext, this),
-                ReleaseChecker(),
-                bleServer
+                ReleaseChecker()
             )
         viewModel.finishActivity.observe(this) {
             finish()
@@ -76,6 +73,11 @@ class MainActivity : ComponentActivity() {
         lifecycleScope.launchWhenResumed {
             viewModel.onResume()
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        viewModel.onAppResumed()
     }
 
     private fun restartGrupetto() {
