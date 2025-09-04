@@ -50,10 +50,7 @@
             android:name=".overlay.OverlayService"
             android:exported="true" />
             
-        <service
-            android:name=".ble.BleFtmsService"
-            android:exported="false"
-            android:enabled="true" />
+        
     </application>
 
 </manifest>

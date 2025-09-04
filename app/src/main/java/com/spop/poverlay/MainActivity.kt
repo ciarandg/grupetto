@@ -75,6 +75,11 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    override fun onResume() {
+        super.onResume()
+        viewModel.onAppResumed()
+    }
+
     private fun restartGrupetto() {
         Toast.makeText(
             this@MainActivity,

@@ -11,7 +11,7 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
 
     enum class Preferences(val key: String) {
         ShowTimerWhenMinimized("showTimerWhenMinimized"),
-        BleFtmsEnabled("bleFtmsEnabled"),
+        BleTxEnabled("bleTxEnabled"),
         BleFtmsDeviceName("bleFtmsDeviceName")
     }
 
@@ -24,11 +24,11 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
     }
 
     private val mutableShowTimerWhenMinimized = MutableStateFlow(true)
-    private val mutableBleFtmsEnabled = MutableStateFlow(false)
+    private val mutableBleTxEnabled = MutableStateFlow(true)
     private val mutableBleFtmsDeviceName = MutableStateFlow("Grupetto FTMS")
 
     val showTimerWhenMinimized = mutableShowTimerWhenMinimized
-    val bleFtmsEnabled = mutableBleFtmsEnabled
+    val bleTxEnabled = mutableBleTxEnabled
     val bleFtmsDeviceName = mutableBleFtmsDeviceName
 
     private val sharedPreferences: SharedPreferences
@@ -62,10 +62,10 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
         }
     }
 
-    fun setBleFtmsEnabled(enabled: Boolean) {
-        mutableBleFtmsEnabled.value = enabled
+    fun setBleTxEnabled(enabled: Boolean) {
+        mutableBleTxEnabled.value = enabled
         sharedPreferences.edit {
-            putBoolean(Preferences.BleFtmsEnabled.key, enabled)
+            putBoolean(Preferences.BleTxEnabled.key, enabled)
         }
     }
 
@@ -81,9 +81,9 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
             sharedPreferences
                 .getBoolean(Preferences.ShowTimerWhenMinimized.key, true)
 
-        mutableBleFtmsEnabled.value =
+        mutableBleTxEnabled.value =
             sharedPreferences
-                .getBoolean(Preferences.BleFtmsEnabled.key, false)
+                .getBoolean(Preferences.BleTxEnabled.key, true)
 
         mutableBleFtmsDeviceName.value =
             sharedPreferences

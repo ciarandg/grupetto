@@ -28,7 +28,7 @@ import androidx.lifecycle.lifecycleScope
 import com.spop.poverlay.ConfigurationRepository
 import com.spop.poverlay.MainActivity
 import com.spop.poverlay.R
-import com.spop.poverlay.ble.BleFtmsService
+
 import com.spop.poverlay.sensor.DeadSensorDetector
 import com.spop.poverlay.sensor.interfaces.DummySensorInterface
 import com.spop.poverlay.sensor.interfaces.PelotonBikeSensorInterfaceV1New
@@ -66,35 +66,13 @@ class OverlayService : LifecycleEnabledService() {
     }
 
 
+    
+
     override fun onCreate() {
         super.onCreate()
-
-        val notificationManager = NotificationManagerCompat.from(this)
-        startForeground(OverlayServiceId, prepareNotification(notificationManager))
-
+        val notification = prepareNotification(NotificationManagerCompat.from(this))
+        startForeground(OverlayServiceId, notification)
         buildDialog()
-        
-        // Start BLE FTMS service if enabled
-        startBleFtmsServiceIfEnabled()
-    }
-
-    private fun startBleFtmsServiceIfEnabled() {
-        val configRepo = ConfigurationRepository(applicationContext, this)
-        lifecycleScope.launchWhenCreated {
-            configRepo.bleFtmsEnabled.collect { enabled ->
-                if (enabled) {
-                    try {
-                        val intent = Intent(this@OverlayService, BleFtmsService::class.java).apply {
-                            action = BleFtmsService.ACTION_START_FTMS
-                        }
-                        ContextCompat.startForegroundService(this@OverlayService, intent)
-                        Timber.i("Auto-started BLE FTMS service from overlay")
-                    } catch (e: Exception) {
-                        Timber.e(e, "Failed to auto-start BLE FTMS service")
-                    }
-                }
-            }
-        }
     }
 
     override fun onBind(intent: Intent?): IBinder? {
