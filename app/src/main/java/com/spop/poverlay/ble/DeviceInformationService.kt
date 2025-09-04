@@ -56,7 +56,7 @@ class DeviceInformationService(server: BleServer) : BaseBleService(server) {
         )
     }
 
-    override fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float) {
+    override fun onSensorDataUpdated(cadence: Float, power: Float, speed: Float, resistance: Float) {
         service.getCharacteristic(DeviceInformationConstants.SoftwareRevisionUUID)?.setValue("test".toByteArray())
     }
 }

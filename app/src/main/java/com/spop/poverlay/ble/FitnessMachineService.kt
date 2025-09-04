@@ -173,13 +173,11 @@ class FitnessMachineService(server: BleServer) : BaseBleService(server) {
         super.onCharacteristicWriteRequest(device, requestId, characteristic, preparedWrite, responseNeeded, offset, value)
     }
 
-    override fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float) {
+    override fun onSensorDataUpdated(cadence: Float, power: Float, speed: Float, resistance: Float) {
     // Build 16-bit flags (LE when serialized). MoreData bit (0) is intentionally 0.
     val flags = FitnessMachineConstants.IndoorBikeDataFlags.InstantaneousCadencePresent or
         FitnessMachineConstants.IndoorBikeDataFlags.InstantaneousPowerPresent or
         FitnessMachineConstants.IndoorBikeDataFlags.ResistanceLevelPresent
-
-        val speed = 0 // Placeholder for speed
 
         val speedValue = (speed * 100).toInt()
         val cadenceValue = (cadence * 2).toInt()

@@ -18,7 +18,7 @@ import timber.log.Timber
 
 // Listener for sensor data updates
 interface SensorDataListener {
-    fun onSensorDataUpdated(cadence: Float, power: Float, resistance: Float)
+    fun onSensorDataUpdated(cadence: Float, power: Float, speed: Float, resistance: Float)
 }
 
 // Base class for all BLE services
@@ -374,23 +374,34 @@ class BleServer(
                 )
     }
 
+    // Data class to hold four lists of sensor values
+    private data class SensorData(
+            val cadence: List<Float>,
+            val power: List<Float>,
+            val speed: List<Float>,
+            val resistance: List<Float>
+    )
+
     private fun startSensorDataUpdates() {
         sensorDataJob?.cancel()
         sensorDataJob = launch {
             val mutex = Mutex()
             val cadenceBuffer = mutableListOf<Float>()
             val powerBuffer = mutableListOf<Float>()
+            val speedBuffer = mutableListOf<Float>()
             val resistanceBuffer = mutableListOf<Float>()
 
             launch {
                 combine(
                                 sensorInterface.cadence,
                                 sensorInterface.power,
+                                sensorInterface.speed,
                                 sensorInterface.resistance
-                        ) { cadence, power, resistance ->
+                        ) { cadence, power, speed, resistance ->
                             mutex.withLock {
                                 cadenceBuffer.add(cadence)
                                 powerBuffer.add(power)
+                                speedBuffer.add(speed)
                                 resistanceBuffer.add(resistance)
                             }
                         }
@@ -404,25 +415,28 @@ class BleServer(
                             mutex.withLock {
                                 if (cadenceBuffer.isEmpty()) null
                                 else
-                                        Triple(
-                                                        cadenceBuffer.toList(),
-                                                        powerBuffer.toList(),
-                                                        resistanceBuffer.toList()
-                                                )
+                                        SensorData(
+                                                cadenceBuffer.toList(),
+                                                powerBuffer.toList(),
+                                                speedBuffer.toList(),
+                                                resistanceBuffer.toList()
+                                        )
                                                 .also {
                                                     cadenceBuffer.clear()
                                                     powerBuffer.clear()
+                                                    speedBuffer.clear()
                                                     resistanceBuffer.clear()
                                                 }
                             }
-                    buffers?.let { (cadence, power, resistance) ->
-                        val avgCadence = cadence.average().toFloat()
-                        val avgPower = power.average().toFloat()
-                        val avgResistance = resistance.average().toFloat()
+                    buffers?.let { data ->
+                        val avgCadence = data.cadence.average().toFloat()
+                        val avgPower = data.power.average().toFloat()
+                        val avgSpeed = data.speed.average().toFloat()
+                        val avgResistance = data.resistance.average().toFloat()
                         // Update shared CSC counters (no wheel speed available here -> pass null)
-                        updateWheelAndCrankRev(null, avgCadence)
+                        updateWheelAndCrankRev(avgSpeed, avgCadence)
                         registeredServices.forEach {
-                            it.onSensorDataUpdated(avgCadence, avgPower, avgResistance)
+                            it.onSensorDataUpdated(avgCadence, avgPower, avgSpeed, avgResistance)
                         }
                     }
                 }
