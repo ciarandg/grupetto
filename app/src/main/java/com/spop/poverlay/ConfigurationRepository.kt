@@ -12,7 +12,8 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
     enum class Preferences(val key: String) {
         ShowTimerWhenMinimized("showTimerWhenMinimized"),
         BleTxEnabled("bleTxEnabled"),
-        BleFtmsDeviceName("bleFtmsDeviceName")
+    BleFtmsDeviceName("bleFtmsDeviceName"),
+    SerialNumber("serialNumber")
     }
 
     companion object {
@@ -26,10 +27,12 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
     private val mutableShowTimerWhenMinimized = MutableStateFlow(true)
     private val mutableBleTxEnabled = MutableStateFlow(true)
     private val mutableBleFtmsDeviceName = MutableStateFlow("Grupetto FTMS")
+    private val mutableSerialNumber = MutableStateFlow("")
 
     val showTimerWhenMinimized = mutableShowTimerWhenMinimized
     val bleTxEnabled = mutableBleTxEnabled
     val bleFtmsDeviceName = mutableBleFtmsDeviceName
+    val serialNumber = mutableSerialNumber
 
     private val sharedPreferences: SharedPreferences
 
@@ -76,6 +79,19 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
         }
     }
 
+    fun setSerialNumber(serial: String) {
+        val normalized = serial.trim().uppercase()
+        mutableSerialNumber.value = normalized
+        sharedPreferences.edit {
+            putString(Preferences.SerialNumber.key, normalized)
+        }
+    }
+
+    private fun generateSerialHex(): String {
+        val value = kotlin.random.Random.nextInt(0x10000)
+        return value.toString(16).padStart(4, '0').uppercase()
+    }
+
     private fun updateFromSharedPrefs() {
         mutableShowTimerWhenMinimized.value =
             sharedPreferences
@@ -88,6 +104,15 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
         mutableBleFtmsDeviceName.value =
             sharedPreferences
                 .getString(Preferences.BleFtmsDeviceName.key, "Grupetto FTMS") ?: "Grupetto FTMS"
+
+        // Ensure a serial number exists and keep it in memory
+        val existingSerial = sharedPreferences.getString(Preferences.SerialNumber.key, null)
+        val ensuredSerial = if (existingSerial.isNullOrEmpty()) {
+            val sn = generateSerialHex()
+            sharedPreferences.edit { putString(Preferences.SerialNumber.key, sn) }
+            sn
+        } else existingSerial
+        mutableSerialNumber.value = ensuredSerial
     }
 
     override fun close() {

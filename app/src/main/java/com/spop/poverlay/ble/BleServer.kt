@@ -1,5 +1,5 @@
 package com.spop.poverlay.ble
-
+import android.os.Build
 import android.bluetooth.*
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
@@ -7,6 +7,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
+import androidx.core.content.edit
 import com.spop.poverlay.sensor.interfaces.SensorInterface
 import java.util.*
 import kotlinx.coroutines.*
@@ -89,63 +90,16 @@ class BleServer(
     private val servicesToRegister = LinkedList<BaseBleService>()
     private var currentlyRegisteringService: BaseBleService? = null
 
-    // CSC shared state (used by multiple services)
-    // Wheel values: cumulative (uint32) and last event time (uint16, 1/1024s). Only updated if
-    // speed provided.
-    var cscCumulativeWheelRev: Long = 0L
-        private set
-    var cscLastWheelEvtTime: Int = 0 // uint16 ticks (wrap at 65536)
-        private set
-    // Crank values: cumulative (uint16) and last event time (uint16, 1/1024s)
-    var cscCumulativeCrankRev: Int = 0
-        private set
-    var cscLastCrankEvtTime: Int = 0 // uint16 ticks (wrap at 65536)
-        private set
-
-    // Update CSC wheel and crank revolutions using the C++ algorithm
-    // speedKmh: if provided, wheel data will be updated; cadenceRpm always used for crank
-    private var cscLastUpdateMs: Long = android.os.SystemClock.elapsedRealtime()
-    private var cscCrankResidual: Double = 0.0
-    private var cscWheelResidual: Double = 0.0
-    fun updateWheelAndCrankRev(speedKmh: Float?, cadenceRpm: Float) {
-        val now = android.os.SystemClock.elapsedRealtime()
-        val deltaMs = (now - cscLastUpdateMs).coerceAtLeast(0)
-        cscLastUpdateMs = now
-
-        // Wheel
-        val wheelSizeMeters = 2.127f // 700c x 28, typical
-    // speedKmh must be in km/h; convert to m/s for wheel RPM calculation
-    var speedMps = speedKmh?.let { it / 3.6f }
-    if (speedMps != null && speedMps > 0f) {
-        speedMps = speedMps.div(2)
-        val wheelRpm = (speedMps / wheelSizeMeters) * 60f
-        if (wheelRpm > 0f) {
-            val wheelRevPeriodTicks = (60.0 * 1024.0) / wheelRpm
-            val wheelRevsDelta = wheelRpm * (deltaMs / 60000.0)
-            cscWheelResidual += wheelRevsDelta
-                val toAdd = kotlin.math.floor(cscWheelResidual).toInt()
-                if (toAdd > 0) {
-                    cscWheelResidual -= toAdd
-                    cscCumulativeWheelRev = (cscCumulativeWheelRev + toAdd) and 0xFFFF_FFFFL
-                    val ticksAdd = (wheelRevPeriodTicks * toAdd).toInt().coerceAtLeast(1)
-                    cscLastWheelEvtTime = (cscLastWheelEvtTime + ticksAdd) and 0xFFFF
-                }
-            }
-        }
-
-        // Crank
-        if (cadenceRpm > 0f) {
-            val crankRevPeriodTicks = (60.0 * 1024.0) / cadenceRpm
-            val crankRevsDelta = cadenceRpm * (deltaMs / 60000.0)
-            cscCrankResidual += crankRevsDelta
-            val toAdd = kotlin.math.floor(cscCrankResidual).toInt()
-            if (toAdd > 0) {
-                cscCrankResidual -= toAdd
-                cscCumulativeCrankRev = (cscCumulativeCrankRev + toAdd) and 0xFFFF
-                val ticksAdd = (crankRevPeriodTicks * toAdd).toInt().coerceAtLeast(1)
-                cscLastCrankEvtTime = (cscLastCrankEvtTime + ticksAdd) and 0xFFFF
-            }
-        }
+    private fun setupServices() {
+        servicesToRegister.addAll(
+                listOf(
+                        //FitnessMachineService(this),
+                        CyclingPowerService(this),
+                        CyclingSpeedAndCadenceService(this),
+                        DeviceInformationService(this)
+                )
+        )
+        registerNextService()
     }
 
     fun start() {
@@ -167,18 +121,6 @@ class BleServer(
         } catch (e: SecurityException) {
             Timber.e(e, "Missing bluetooth permissions")
         }
-    }
-
-    private fun setupServices() {
-        servicesToRegister.addAll(
-                listOf(
-                        //FitnessMachineService(this),
-                        CyclingPowerService(this),
-                        CyclingSpeedAndCadenceService(this),
-                        DeviceInformationService(this)
-                )
-        )
-        registerNextService()
     }
 
     private fun registerNextService() {
@@ -249,15 +191,34 @@ class BleServer(
                             .setConnectable(true)
                             .build()
 
-            val dataBuilder = AdvertiseData.Builder().setIncludeDeviceName(true)
-
+            // Primary advertising data: keep it lean (just service UUIDs) to avoid 31-byte limit
+            val advDataBuilder = AdvertiseData.Builder()
             for (uuid in serviceUuids) {
-                dataBuilder.addServiceUuid(uuid)
+                advDataBuilder.addServiceUuid(uuid)
             }
 
-            advertiser?.startAdvertising(settings, dataBuilder.build(), advertisingCallback)
+            // Scan response: include device name and manufacturer specific data
+            val scanResponseBuilder = AdvertiseData.Builder()
+                .setIncludeDeviceName(true)
+
+            // Manufacturer data (use a test/manufacturer ID; replace with your assigned company ID if available)
+            val manufacturerId = 0xFFFF // 16-bit Company Identifier (testing)
+            val sn = serialNumber()
+            // Keep payload concise to fit scan response size constraints
+            val manufacturerData = "GRUP-$sn".toByteArray(Charsets.UTF_8)
+            scanResponseBuilder.addManufacturerData(manufacturerId, manufacturerData)
+
+            advertiser?.startAdvertising(
+                settings,
+                advDataBuilder.build(),
+                scanResponseBuilder.build(),
+                advertisingCallback
+            )
         } catch (e: SecurityException) {
             Timber.e(e, "Missing bluetooth permissions")
+        } catch (e: IllegalArgumentException) {
+            // Thrown if advertise data exceeds the allowed size
+            Timber.e(e, "Invalid advertise data: %s", e.message)
         }
     }
 
@@ -521,5 +482,82 @@ class BleServer(
     private fun smoothResistance(v: Float, alpha: Float = 0.35f): Float {
         smoothedResistance = smooth(smoothedResistance, v, alpha)
         return smoothedResistance!!
+    }
+
+    // CSC shared state (used by multiple services)
+    // Wheel values: cumulative (uint32) and last event time (uint16, 1/1024s). Only updated if
+    // speed provided.
+    var cscCumulativeWheelRev: Long = 0L
+        private set
+    var cscLastWheelEvtTime: Int = 0 // uint16 ticks (wrap at 65536)
+        private set
+    // Crank values: cumulative (uint16) and last event time (uint16, 1/1024s)
+    var cscCumulativeCrankRev: Int = 0
+        private set
+    var cscLastCrankEvtTime: Int = 0 // uint16 ticks (wrap at 65536)
+        private set
+
+    // Update CSC wheel and crank revolutions using the C++ algorithm
+    // speedKmh: if provided, wheel data will be updated; cadenceRpm always used for crank
+    private var cscLastUpdateMs: Long = android.os.SystemClock.elapsedRealtime()
+    private var cscCrankResidual: Double = 0.0
+    private var cscWheelResidual: Double = 0.0
+    fun updateWheelAndCrankRev(speedKmh: Float?, cadenceRpm: Float) {
+        val now = android.os.SystemClock.elapsedRealtime()
+        val deltaMs = (now - cscLastUpdateMs).coerceAtLeast(0)
+        cscLastUpdateMs = now
+
+        // Wheel
+        val wheelSizeMeters = 2.127f // 700c x 28, typical
+    // speedKmh must be in km/h; convert to m/s for wheel RPM calculation
+    var speedMps = speedKmh?.let { it / 3.6f }
+    if (speedMps != null && speedMps > 0f) {
+        speedMps = speedMps.div(2)
+        val wheelRpm = (speedMps / wheelSizeMeters) * 60f
+        if (wheelRpm > 0f) {
+            val wheelRevPeriodTicks = (60.0 * 1024.0) / wheelRpm
+            val wheelRevsDelta = wheelRpm * (deltaMs / 60000.0)
+            cscWheelResidual += wheelRevsDelta
+                val toAdd = kotlin.math.floor(cscWheelResidual).toInt()
+                if (toAdd > 0) {
+                    cscWheelResidual -= toAdd
+                    cscCumulativeWheelRev = (cscCumulativeWheelRev + toAdd) and 0xFFFF_FFFFL
+                    val ticksAdd = (wheelRevPeriodTicks * toAdd).toInt().coerceAtLeast(1)
+                    cscLastWheelEvtTime = (cscLastWheelEvtTime + ticksAdd) and 0xFFFF
+                }
+            }
+        }
+
+        // Crank
+        if (cadenceRpm > 0f) {
+            val crankRevPeriodTicks = (60.0 * 1024.0) / cadenceRpm
+            val crankRevsDelta = cadenceRpm * (deltaMs / 60000.0)
+            cscCrankResidual += crankRevsDelta
+            val toAdd = kotlin.math.floor(cscCrankResidual).toInt()
+            if (toAdd > 0) {
+                cscCrankResidual -= toAdd
+                cscCumulativeCrankRev = (cscCumulativeCrankRev + toAdd) and 0xFFFF
+                val ticksAdd = (crankRevPeriodTicks * toAdd).toInt().coerceAtLeast(1)
+                cscLastCrankEvtTime = (cscLastCrankEvtTime + ticksAdd) and 0xFFFF
+            }
+        }
+    }
+
+
+    //Function checks userprefs to see if serial number has been generated on previous ones, and if not, It creates one.
+    fun serialNumber(): String {
+        // Use the same shared preferences as ConfigurationRepository
+        val prefs = context.getSharedPreferences(
+            com.spop.poverlay.ConfigurationRepository.SharedPrefsName,
+            Context.MODE_PRIVATE
+        )
+        val key = com.spop.poverlay.ConfigurationRepository.Preferences.SerialNumber.key
+        var existing = prefs.getString(key, null)
+        if (existing.isNullOrEmpty()) {
+            val value = kotlin.random.Random.nextInt(0x10000)
+            existing = value.toString(16).padStart(4, '0').uppercase()
+            prefs.edit { putString(key, existing) }
+        }
+        return existing
     }
 }
