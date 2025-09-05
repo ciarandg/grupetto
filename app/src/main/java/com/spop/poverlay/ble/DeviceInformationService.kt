@@ -1,10 +1,9 @@
 package com.spop.poverlay.ble
-
+import com.spop.poverlay.BuildConfig
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattService
 import android.os.Build
 import android.health.connect.datatypes.Device
-import com.spop.poverlay.ble.DeviceInformationConstants
 
 class DeviceInformationService(server: BleServer) : BaseBleService(server) {
 
@@ -70,12 +69,12 @@ class DeviceInformationService(server: BleServer) : BaseBleService(server) {
         service.getCharacteristic(DeviceInformationConstants.ModelNumberUUID)
                 ?.setValue("Grupetto FTMS".toByteArray(Charsets.UTF_8))
         service.getCharacteristic(DeviceInformationConstants.SerialNumberUUID)
-                ?.setValue("GP-0001".toByteArray(Charsets.UTF_8))
+                ?.setValue(server.serialNumber().toByteArray(Charsets.UTF_8))
         service.getCharacteristic(DeviceInformationConstants.HardwareRevisionUUID)
                 ?.setValue("1.0".toByteArray(Charsets.UTF_8))
         service.getCharacteristic(DeviceInformationConstants.FirmwareRevisionUUID)
-                ?.setValue("1.0.0".toByteArray(Charsets.UTF_8))
+                ?.setValue(BuildConfig.VERSION_NAME.toByteArray(Charsets.UTF_8))
         service.getCharacteristic(DeviceInformationConstants.SoftwareRevisionUUID)
-                ?.setValue("1.0.0".toByteArray(Charsets.UTF_8))
+                ?.setValue(BuildConfig.VERSION_NAME.toByteArray(Charsets.UTF_8))
     }
 }

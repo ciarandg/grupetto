@@ -155,6 +155,7 @@ class ConfigurationViewModel(
 
     fun onClickedRelease(release: Release) {
         val browserIntent = Intent(Intent.ACTION_VIEW, release.url)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         getApplication<Application>().startActivity(browserIntent)
     }
 

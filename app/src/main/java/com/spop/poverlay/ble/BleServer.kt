@@ -1,5 +1,5 @@
 package com.spop.poverlay.ble
-
+import android.os.Build
 import android.bluetooth.*
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
@@ -7,6 +7,7 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
+import androidx.core.content.edit
 import com.spop.poverlay.sensor.interfaces.SensorInterface
 import java.util.*
 import kotlinx.coroutines.*
@@ -190,15 +191,34 @@ class BleServer(
                             .setConnectable(true)
                             .build()
 
-            val dataBuilder = AdvertiseData.Builder().setIncludeDeviceName(true)
-
+            // Primary advertising data: keep it lean (just service UUIDs) to avoid 31-byte limit
+            val advDataBuilder = AdvertiseData.Builder()
             for (uuid in serviceUuids) {
-                dataBuilder.addServiceUuid(uuid)
+                advDataBuilder.addServiceUuid(uuid)
             }
 
-            advertiser?.startAdvertising(settings, dataBuilder.build(), advertisingCallback)
+            // Scan response: include device name and manufacturer specific data
+            val scanResponseBuilder = AdvertiseData.Builder()
+                .setIncludeDeviceName(true)
+
+            // Manufacturer data (use a test/manufacturer ID; replace with your assigned company ID if available)
+            val manufacturerId = 0xFFFF // 16-bit Company Identifier (testing)
+            val sn = serialNumber()
+            // Keep payload concise to fit scan response size constraints
+            val manufacturerData = "GRUP-$sn".toByteArray(Charsets.UTF_8)
+            scanResponseBuilder.addManufacturerData(manufacturerId, manufacturerData)
+
+            advertiser?.startAdvertising(
+                settings,
+                advDataBuilder.build(),
+                scanResponseBuilder.build(),
+                advertisingCallback
+            )
         } catch (e: SecurityException) {
             Timber.e(e, "Missing bluetooth permissions")
+        } catch (e: IllegalArgumentException) {
+            // Thrown if advertise data exceeds the allowed size
+            Timber.e(e, "Invalid advertise data: %s", e.message)
         }
     }
 
@@ -521,5 +541,23 @@ class BleServer(
                 cscLastCrankEvtTime = (cscLastCrankEvtTime + ticksAdd) and 0xFFFF
             }
         }
+    }
+
+
+    //Function checks userprefs to see if serial number has been generated on previous ones, and if not, It creates one.
+    fun serialNumber(): String {
+        // Use the same shared preferences as ConfigurationRepository
+        val prefs = context.getSharedPreferences(
+            com.spop.poverlay.ConfigurationRepository.SharedPrefsName,
+            Context.MODE_PRIVATE
+        )
+        val key = com.spop.poverlay.ConfigurationRepository.Preferences.SerialNumber.key
+        var existing = prefs.getString(key, null)
+        if (existing.isNullOrEmpty()) {
+            val value = kotlin.random.Random.nextInt(0x10000)
+            existing = value.toString(16).padStart(4, '0').uppercase()
+            prefs.edit { putString(key, existing) }
+        }
+        return existing
     }
 }

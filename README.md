@@ -3,7 +3,7 @@
 
 &nbsp;
 
-**grupetto** is an app that creates a system-wide overlay with live statistics about your ride:
+**grupetto** is an app that creates a system-wide overlay with live statistics about your ride, and transmits the metrics as a BLE power meter.
 
 <p align="center">
 <img width="500" alt="Dougmeister" src="https://user-images.githubusercontent.com/17497673/192136344-e649bfd8-1d8b-452c-ab5f-9aff84118e25.gif">
@@ -24,19 +24,18 @@ your repository
 - [Installation](#installation)
 - [Usage](#usage)
 - [Implementation](#implementation)
-    * [Getting access to sensor data](#getting-access-to-sensor-data)
-        + [Exploring SerialPort](#exploring-serialport)
-        + [Establishing system service connection](#establishing-system-service-connection)
-    * [Android App Architecture](#android-app-architecture)
-    * [Other hardware](#other-hardware)
+  - [Getting access to sensor data](#getting-access-to-sensor-data)
+    - [Exploring SerialPort](#exploring-serialport)
+    - [Establishing system service connection](#establishing-system-service-connection)
+  - [Android App Architecture](#android-app-architecture)
+  - [Other hardware](#other-hardware)
 - [Reporting Issues](#reporting-issues)
 - [Unimplemented features](#unimplemented-features)
-- [Naming](#whats-with-the-name)
+- [What's with the name?](#whats-with-the-name)
 
 # Installation
 
-grupetto must be side-loaded onto the Peloton,
-follow [this guide](https://www.reddit.com/r/pelotoncycle/wiki/index/howto/root/) to learn how to
+grupetto must be side-loaded onto the Peloton, watch https://www.youtube.com/watch?v=Q5XIlXqa0Cg to learn how to
 sideload an APK.
 
 After following those steps, the APK for grupetto can be found on the Releases tab above.
