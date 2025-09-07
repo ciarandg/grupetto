@@ -90,10 +90,11 @@ class BleServer(
     private val servicesToRegister = LinkedList<BaseBleService>()
     private var currentlyRegisteringService: BaseBleService? = null
 
+    //ADD OR EDIT SERVICES HERE
     private fun setupServices() {
         servicesToRegister.addAll(
                 listOf(
-                        //FitnessMachineService(this),
+                        FitnessMachineService(this),
                         CyclingPowerService(this),
                         CyclingSpeedAndCadenceService(this),
                         DeviceInformationService(this)
