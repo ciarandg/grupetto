@@ -40,10 +40,6 @@ sideload an APK.
 
 After following those steps, the APK for grupetto can be found on the Releases tab above.
 
-Note: Unfortunately, sideloading functionality was recently locked behind a valid subscription. At
-the time of writing, once the overlay has been installed its continued function is not tied to a
-subscription. (this is subject to change)
-
 # Usage
 
 - When first run, grupetto will ask for permission to draw over other apps. This permission is
