@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Intent
+import android.content.pm.ServiceInfo
 import android.graphics.PixelFormat
 import android.os.Build
 import android.os.IBinder
@@ -71,7 +72,15 @@ class OverlayService : LifecycleEnabledService() {
     override fun onCreate() {
         super.onCreate()
         val notification = prepareNotification(NotificationManagerCompat.from(this))
-        startForeground(OverlayServiceId, notification)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            startForeground(
+                OverlayServiceId, 
+                notification,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
+            )
+        } else {
+            startForeground(OverlayServiceId, notification)
+        }
         buildDialog()
     }
 
@@ -115,16 +124,19 @@ class OverlayService : LifecycleEnabledService() {
             EmulatorSensorInterface
         }
 
+        val timerViewModel = OverlayTimerViewModel(
+            application,
+            ConfigurationRepository(applicationContext, this),
+            sensorInterface.power
+        )
+
         val sensorViewModel = OverlaySensorViewModel(
             application,
             sensorInterface,
-            DeadSensorDetector(sensorInterface, this.coroutineContext)
+            DeadSensorDetector(sensorInterface, this.coroutineContext),
+            timerViewModel
         )
 
-        val timerViewModel = OverlayTimerViewModel(
-            application,
-            ConfigurationRepository(applicationContext, this)
-        )
         val dialogViewModel = OverlayDialogViewModel(screenSize, sensorViewModel.isMinimized)
 
         val layoutFlag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
