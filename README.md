@@ -35,8 +35,28 @@ your repository
 
 # Installation
 
-grupetto must be side-loaded onto the Peloton, watch https://www.youtube.com/watch?v=Q5XIlXqa0Cg to learn how to
+grupetto must be side-loaded onto the Peloton, The easiest way is to use [OpenPelo](https://github.com/doudar/openpelo). You can either watch [this video](https://www.youtube.com/watch?v=Q5XIlXqa0Cg) , or follow the steps below to learn how to
 sideload an APK.
+1. Enable USB debugging on your Peloton:
+   - Make sure your bike sensor cable is connected to the Peloton Tablet.
+   - Go to Settings, system menu and perform a Firmware Reset.
+   - Select your language on the setup screen, but don't go any further. 
+   - Go to Settings.
+   - Go to Device Preferences.
+   - Tap 7 times on Build Number to enable Developer Options.
+   - Go back to Settings.
+   - Go To Developer Options.
+   - Enable USB debugging.
+   - Disable Verify apps over USB.
+   - Enable Gabeldorsche (if availiable).
+   - Plug your computer into the Peloton using a micro USB-B cable.  
+   - Select "always allow this computer" and allow USB debugging. 
+2. Run OpenPelo:
+   - Double-click the downloaded executable.
+   - The installer will automatically check for your device.
+   - Wait for the "✅ Device connected" status.
+   - Select the apps you want to install by checking the boxes (grupetto is one of the options).
+   - Click "Install Selected Apps" and wait for the installation to complete.
 
 After following those steps, the APK for grupetto can be found on the Releases tab above.
 
