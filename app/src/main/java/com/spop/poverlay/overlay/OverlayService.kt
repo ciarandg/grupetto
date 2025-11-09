@@ -22,13 +22,13 @@ import androidx.compose.ui.platform.ViewCompositionStrategy
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.lifecycleScope
 import com.spop.poverlay.ConfigurationRepository
 import com.spop.poverlay.MainActivity
 import com.spop.poverlay.R
+import com.spop.poverlay.overlay.composables.Overlay
 
 import com.spop.poverlay.sensor.DeadSensorDetector
 import com.spop.poverlay.sensor.interfaces.DummySensorInterface
@@ -46,21 +46,21 @@ import kotlin.math.roundToInt
 
 class OverlayService : LifecycleEnabledService() {
     companion object {
-        private const val DefaultOverlayFlags = (LayoutParams.FLAG_NOT_TOUCH_MODAL
+        private const val DEFAULT_OVERLAY_FLAGS = (LayoutParams.FLAG_NOT_TOUCH_MODAL
                 or LayoutParams.FLAG_NOT_FOCUSABLE
                 or LayoutParams.FLAG_LAYOUT_NO_LIMITS)
 
 
-        private const val OverlayServiceId = 2032
+        private const val OVERLAY_SERVICE_ID = 2032
 
         val OverlayHeightDp = 110.dp
 
         //Increases the size of the touch target during the hidden state
-        const val HiddenTouchTargetMarginPx = 40
+        const val HIDDEN_TOUCH_TARGET_MARGIN_PX = 40
 
         //The percentage up or down a vertical drag must go before the overlay is relocated
         //Defined relative to the height of the screen
-        const val VerticalMoveDragThreshold = .5f
+        const val VERTICAL_MOVE_DRAG_THRESHOLD = .5f
 
         // Replace with DeadSensorInterface to simulate a dead sensor
         val EmulatorSensorInterface by lazy { DummySensorInterface() }
@@ -74,12 +74,12 @@ class OverlayService : LifecycleEnabledService() {
         val notification = prepareNotification(NotificationManagerCompat.from(this))
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
             startForeground(
-                OverlayServiceId, 
+                OVERLAY_SERVICE_ID,
                 notification,
                 ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE
             )
         } else {
-            startForeground(OverlayServiceId, notification)
+            startForeground(OVERLAY_SERVICE_ID, notification)
         }
         buildDialog()
     }
@@ -222,7 +222,7 @@ class OverlayService : LifecycleEnabledService() {
                 val (mWidth, mHeight)  = values[5] as Pair<Int,Int>
                 overlayParams.x = origin.x.roundToInt()
                 overlayParams.y = origin.y.roundToInt()
-                overlayParams.flags = DefaultOverlayFlags or overlayFlags
+                overlayParams.flags = DEFAULT_OVERLAY_FLAGS or overlayFlags
                 overlayParams.gravity = gravity
                 overlayParams.width = width
                 overlayParams.height = if(sensorViewModel.isMinimized.value){

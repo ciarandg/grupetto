@@ -10,9 +10,6 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.spop.poverlay.overlay.PowerChartFullWidth
-import com.spop.poverlay.overlay.PowerChartShrunkWidth
-import com.spop.poverlay.overlay.StatCardWidth
 import com.spop.poverlay.ui.theme.PTONOverlayTheme
 import com.spop.poverlay.util.LineChart
 

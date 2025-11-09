@@ -17,7 +17,7 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
     }
 
     companion object {
-        const val SharedPrefsName = "configuration"
+        const val SHARED_PREFS_NAME = "configuration"
         // This workaround is required since SharedPreferences
         // only stores weak references to objects
         val SharedPreferenceListeners =
@@ -45,7 +45,7 @@ class ConfigurationRepository(context: Context, lifecycleOwner: LifecycleOwner) 
     private val listener : SharedPreferences.OnSharedPreferenceChangeListener
 
     init {
-        sharedPreferences = context.getSharedPreferences(SharedPrefsName, Context.MODE_PRIVATE)
+        sharedPreferences = context.getSharedPreferences(SHARED_PREFS_NAME, Context.MODE_PRIVATE)
         updateFromSharedPrefs()
 
         listener = createSharedPreferencesListener()

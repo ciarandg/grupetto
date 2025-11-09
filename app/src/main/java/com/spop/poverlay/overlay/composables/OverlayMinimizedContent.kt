@@ -24,7 +24,6 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spop.poverlay.R
-import com.spop.poverlay.overlay.BackgroundColorDefault
 import com.spop.poverlay.overlay.OverlayLocation
 import com.spop.poverlay.ui.theme.PTONOverlayTheme
 

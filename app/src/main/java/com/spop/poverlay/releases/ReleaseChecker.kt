@@ -12,18 +12,18 @@ class ReleaseChecker(
     private val client: OkHttpClient = OkHttpClient()
 ) {
     companion object {
-        const val GithubHeaderVersion = "2022-11-28"
-        const val GithubHeaderAccept = "application/vnd.github+json"
+        const val GITHUB_HEADER_VERSION = "2022-11-28"
+        const val GITHUB_HEADER_ACCEPT = "application/vnd.github+json"
         val GithubFormatDate = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss'Z'", Locale.US)
 
-        const val ReleaseEndpoint = "https://api.github.com/repos/ciarandg/grupetto/releases"
+        const val RELEASE_ENDPOINT = "https://api.github.com/repos/ciarandg/grupetto/releases"
     }
 
     suspend fun getLatestRelease(): Result<Release?> {
         val request = Request.Builder().apply {
-            url(ReleaseEndpoint)
-            addHeader("X-GitHub-Api-Version", GithubHeaderVersion)
-            addHeader("Accept", GithubHeaderAccept)
+            url(RELEASE_ENDPOINT)
+            addHeader("X-GitHub-Api-Version", GITHUB_HEADER_VERSION)
+            addHeader("Accept", GITHUB_HEADER_ACCEPT)
         }.build()
         try {
             val response = client.newCall(request).await()

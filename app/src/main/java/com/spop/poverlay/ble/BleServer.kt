@@ -1,5 +1,4 @@
 package com.spop.poverlay.ble
-import android.os.Build
 import android.bluetooth.*
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
@@ -549,7 +548,7 @@ class BleServer(
     fun serialNumber(): String {
         // Use the same shared preferences as ConfigurationRepository
         val prefs = context.getSharedPreferences(
-            com.spop.poverlay.ConfigurationRepository.SharedPrefsName,
+            com.spop.poverlay.ConfigurationRepository.SHARED_PREFS_NAME,
             Context.MODE_PRIVATE
         )
         val key = com.spop.poverlay.ConfigurationRepository.Preferences.SerialNumber.key
