@@ -1,4 +1,4 @@
-package com.spop.poverlay.overlay
+package com.spop.poverlay.overlay.composables
 
 import androidx.compose.animation.core.LinearEasing
 import androidx.compose.animation.core.TweenSpec
@@ -25,8 +25,9 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.zIndex
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
-import com.spop.poverlay.overlay.composables.OverlayMainContent
-import com.spop.poverlay.overlay.composables.OverlayMinimizedContent
+import com.spop.poverlay.overlay.OverlayLocation
+import com.spop.poverlay.overlay.OverlaySensorViewModel
+import com.spop.poverlay.overlay.OverlayTimerViewModel
 import kotlinx.coroutines.flow.drop
 import kotlinx.coroutines.flow.onEach
 import timber.log.Timber
