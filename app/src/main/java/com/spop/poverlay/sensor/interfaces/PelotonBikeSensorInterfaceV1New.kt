@@ -26,7 +26,7 @@ class PelotonBikeSensorInterfaceV1New(val context: Context) : SensorInterface, C
          *
          * The spikes are likely a limitation of ADC accuracy
          */
-        const val ResistanceMovingAverageWindowSize = 3
+        const val RESISTANCE_MOVING_AVERAGE_WINDOW_SIZE = 3
     }
     
     private val binder = MutableSharedFlow<IBinder>(replay = 1)
@@ -72,7 +72,7 @@ class PelotonBikeSensorInterfaceV1New(val context: Context) : SensorInterface, C
             resistanceSensor.start()
             resistanceSensor.sensorValue
         }
-            .windowed(ResistanceMovingAverageWindowSize, 1, true) { readings ->
+            .windowed(RESISTANCE_MOVING_AVERAGE_WINDOW_SIZE, 1, true) { readings ->
                 // Resistance sensor occasionally spikes for a single reading
                 // So take the least of the last few readings
                 readings.minOf { it }

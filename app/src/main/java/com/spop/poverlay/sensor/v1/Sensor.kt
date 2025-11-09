@@ -15,19 +15,19 @@ import java.util.*
 abstract class Sensor(private val command: Command, private val binder: IBinder) {
     companion object {
         // Sent to Peloton service to uniquely identify a request
-        const val RequestIdBundleKey = "requestId"
+        const val REQUEST_ID_BUNDLE_KEY = "requestId"
 
         // Contains raw serial response for each sensor update sent by Peloton service
-        const val HexResponseBundleKey = "responseHexString"
+        const val HEX_RESPONSE_BUNDLE_KEY = "responseHexString"
 
         // Contains epoch time of each sensor update sent by Peloton service
-        const val TimeBundleKey = "time"
+        const val TIME_BUNDLE_KEY = "time"
 
         // Pre-parsed value for sensor sent by Peloton service
-        const val SensorValueBundleKey = "data"
+        const val SENSOR_VALUE_BUNDLE_KEY = "data"
 
         // Sent by Peloton service when a sensor has timed out
-        const val SensorTimeoutString = "TIME_OUT"
+        const val SENSOR_TIMEOUT_STRING = "TIME_OUT"
     }
 
     private var mostRecentMessageTimestamp = 0L
@@ -58,7 +58,7 @@ abstract class Sensor(private val command: Command, private val binder: IBinder)
         Messenger(binder).send(Message().apply {
             what = command.id
             data = bundleOf(
-                RequestIdBundleKey to UUID.randomUUID().toString()
+                REQUEST_ID_BUNDLE_KEY to UUID.randomUUID().toString()
             )
             replyTo = Messenger(handler)
         })
@@ -78,12 +78,12 @@ abstract class Sensor(private val command: Command, private val binder: IBinder)
 
         val reply = message.data
 
-        if (reply.getString(HexResponseBundleKey) == SensorTimeoutString) {
+        if (reply.getString(HEX_RESPONSE_BUNDLE_KEY) == SENSOR_TIMEOUT_STRING) {
             Timber.e("sensor command timed out: $command")
             return
         }
 
-        val messageTimestamp = reply.getLong(TimeBundleKey)
+        val messageTimestamp = reply.getLong(TIME_BUNDLE_KEY)
         if (messageTimestamp < mostRecentMessageTimestamp) {
             Timber.w("discarding stale sensor response for ${command.name}")
             return
@@ -91,12 +91,12 @@ abstract class Sensor(private val command: Command, private val binder: IBinder)
             mostRecentMessageTimestamp = messageTimestamp
         }
 
-        if (!reply.containsKey(SensorValueBundleKey)) {
+        if (!reply.containsKey(SENSOR_VALUE_BUNDLE_KEY)) {
             Timber.e("missing sensor value in response for command ${command.name}")
             return
         }
 
-        val sensorValue = mapValue(reply.getFloat(SensorValueBundleKey))
+        val sensorValue = mapValue(reply.getFloat(SENSOR_VALUE_BUNDLE_KEY))
         mutableSensorValue.tryEmit(sensorValue)
     }
 

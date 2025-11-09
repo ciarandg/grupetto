@@ -5,7 +5,6 @@ import android.view.WindowManager.LayoutParams
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.unit.IntSize
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlin.math.abs
@@ -44,7 +43,7 @@ class OverlayDialogViewModel(
 
         if (isMinimizeDone) {
             touchTargetVisiblity.value = View.VISIBLE
-            touchTargetHeight.value = remainingHeight + OverlayService.HiddenTouchTargetMarginPx
+            touchTargetHeight.value = remainingHeight + OverlayService.HIDDEN_TOUCH_TARGET_MARGIN_PX
         } else {
             touchTargetVisiblity.value = View.GONE
             touchTargetHeight.value = 0f
@@ -99,7 +98,7 @@ class OverlayDialogViewModel(
     // - Reset the progress to 0 and move the view once drag is halfway across screen
     // - Keep the current progress otherwise
     fun processVerticalDrag(distance: Float): Float {
-        if (abs(distance) > screenSize.height * OverlayService.VerticalMoveDragThreshold) {
+        if (abs(distance) > screenSize.height * OverlayService.VERTICAL_MOVE_DRAG_THRESHOLD) {
             val newLocation = verticalToggleOverlayLocation(dialogLocation.value)
             dialogLocation.value = newLocation
             dialogGravity.value = newLocation.gravity
