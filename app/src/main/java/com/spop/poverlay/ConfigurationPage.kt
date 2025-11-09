@@ -80,7 +80,7 @@ private fun StartServicePage(
             fontWeight = FontWeight.Bold
     )
     Text(
-            text = "Note: Not endorsed with, associated with, or supported by Peloton",
+            text = "Note: Not endorsed by, supported by, or associated with Peloton",
             fontSize = 25.sp,
             fontStyle = FontStyle.Italic,
             fontWeight = FontWeight.Bold
