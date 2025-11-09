@@ -28,6 +28,7 @@ import com.spop.poverlay.R
 import com.spop.poverlay.overlay.BackgroundColorDefault
 import com.spop.poverlay.overlay.OverlayLocation
 import com.spop.poverlay.overlay.StatCard
+import com.spop.poverlay.ui.theme.PTONOverlayTheme
 
 
 @Composable
@@ -179,7 +180,7 @@ private fun OverlayTimerField(
 @Preview(showBackground = true, backgroundColor = 0x000000)
 @Composable
 fun OverlayMinimizedContentPreview() {
-    MaterialTheme {
+    PTONOverlayTheme {
         OverlayMinimizedContent(
             isMinimized = true,
             showTimerWhenMinimized = true,
@@ -201,7 +202,7 @@ fun OverlayMinimizedContentPreview() {
 @Preview(showBackground = true, backgroundColor = 0x000000)
 @Composable
 fun OverlayTimerFieldPreview() {
-    MaterialTheme {
+    PTONOverlayTheme {
         OverlayTimerField(
             modifier = Modifier,
             timerLabel = "0.1234",

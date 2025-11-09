@@ -10,6 +10,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.sp
+import com.spop.poverlay.ui.theme.PTONOverlayTheme
 
 
 @Composable
@@ -42,7 +43,7 @@ fun StatCard(name: String, value: String, unit: String, modifier: Modifier) {
 @Preview(showBackground = true, backgroundColor = 0x000000)
 @Composable
 fun StatCardPreview() {
-    MaterialTheme {
+    PTONOverlayTheme {
         StatCard(
             name = "Speed",
             value = "42",
