@@ -8,11 +8,13 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import com.spop.poverlay.overlay.PowerChartFullWidth
 import com.spop.poverlay.overlay.PowerChartShrunkWidth
 import com.spop.poverlay.overlay.StatCard
 import com.spop.poverlay.overlay.StatCardWidth
+import com.spop.poverlay.ui.theme.PTONOverlayTheme
 import com.spop.poverlay.util.LineChart
 
 
@@ -81,4 +83,23 @@ fun OverlayMainContent(
     }
 }
 
-
+@Preview(showBackground = true, backgroundColor = 0x000000, widthDp = 750)
+@Composable
+fun OverlayMainContentPreview() {
+    PTONOverlayTheme {
+        OverlayMainContent(
+            modifier = Modifier.wrapContentWidth(unbounded = true),
+            rowAlignment = Alignment.Top,
+            power = "80",
+            rpm = "105",
+            powerGraph = List(100) { kotlin.random.Random.nextFloat() * 250f }, // TODO: haven't been able to get the graph to render in preview yet
+            resistance = "33",
+            speed = "14.8",
+            speedLabel = "mph",
+            calories = "35",
+            pauseChart = false,
+            onSpeedClicked = {},
+            onChartClicked = {}
+        )
+    }
+}
