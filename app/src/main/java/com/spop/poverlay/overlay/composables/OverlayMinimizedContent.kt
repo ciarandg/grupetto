@@ -7,6 +7,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateOf
@@ -19,12 +20,14 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.spop.poverlay.R
 import com.spop.poverlay.overlay.BackgroundColorDefault
 import com.spop.poverlay.overlay.OverlayLocation
+import com.spop.poverlay.overlay.StatCard
 
 
 @Composable
@@ -169,6 +172,40 @@ private fun OverlayTimerField(
             textAlign = TextAlign.Center,
             modifier = Modifier
                 .fillMaxWidth()
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0x000000)
+@Composable
+fun OverlayMinimizedContentPreview() {
+    MaterialTheme {
+        OverlayMinimizedContent(
+            isMinimized = true,
+            showTimerWhenMinimized = true,
+            location = OverlayLocation.Top,
+            powerLabel = "0.1",
+            cadenceLabel = "0.2",
+            speedLabel = "0.3",
+            resistanceLabel = "0.4",
+            contentAlpha = 1f,
+            timerLabel = "01:23",
+            timerPaused = false,
+            onTap = {},
+            onLongPress = {},
+            onLayout = {},
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0x000000)
+@Composable
+fun OverlayTimerFieldPreview() {
+    MaterialTheme {
+        OverlayTimerField(
+            modifier = Modifier,
+            timerLabel = "0.1234",
+            iconDrawable = R.drawable.ic_power
         )
     }
 }
