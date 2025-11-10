@@ -2,7 +2,6 @@ package com.spop.poverlay
 
 import android.content.Intent
 import android.content.pm.PackageManager
-import android.content.res.Configuration
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
@@ -13,26 +12,20 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.List
-import androidx.compose.material.icons.filled.Person
-import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
-import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.tooling.preview.Preview
-import androidx.compose.ui.zIndex
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
 import com.spop.poverlay.releases.ReleaseChecker
@@ -74,29 +67,7 @@ class MainActivity : ComponentActivity() {
                 ).show()
         }
         setContent {
-            PTONOverlayTheme {
-                Row {
-                    NavigationRail {
-                        NavigationRailItem(
-                            selected = false,
-                            onClick = {},
-                            icon = {
-                                Icon(Icons.Filled.Home, "Configuration Page")
-                            },
-                        )
-                        NavigationRailItem(
-                            selected = false,
-                            onClick = {},
-                            icon = {
-                                Icon(Icons.Filled.List, "Workout Plans")
-                            },
-                        )
-                    }
-                    ConfigurationPage(
-                        viewModel,
-                    )
-                }
-            }
+            MainComponent(viewModel)
         }
         lifecycleScope.launchWhenResumed {
             viewModel.onResume()
@@ -152,6 +123,48 @@ class MainActivity : ComponentActivity() {
 
     private fun requestBluetoothPermissions(permissions: Array<String>) {
         bluetoothPermissionRequest.launch(permissions)
+    }
+}
+
+enum class Destination(
+    val icon: ImageVector,
+    val iconDescription: String,
+    val renderPage: @Composable (ConfigurationViewModel) -> Unit,
+) {
+    CONFIGURATION(
+        icon = Icons.Filled.Home,
+        iconDescription = "Configuration Page",
+        renderPage = { viewModel ->
+            ConfigurationPage(viewModel)
+        },
+    ),
+    WORKOUT_PLANS(
+        icon = Icons.Filled.List,
+        iconDescription = "Workout Plans Page",
+        renderPage = {},
+    ),
+}
+
+@Composable
+fun MainComponent(viewModel: ConfigurationViewModel) {
+    val startDestination = Destination.CONFIGURATION
+    var selectedDestination by rememberSaveable { mutableStateOf(startDestination.ordinal) }
+
+    PTONOverlayTheme {
+        Row {
+            NavigationRail {
+                Destination.entries.forEachIndexed { index, destination ->
+                    NavigationRailItem(
+                        selected = selectedDestination == index,
+                        onClick = { selectedDestination = index },
+                        icon = {
+                            Icon(destination.icon, destination.iconDescription)
+                        },
+                    )
+                }
+            }
+            Destination.entries[selectedDestination].renderPage(viewModel)
+        }
     }
 }
 
