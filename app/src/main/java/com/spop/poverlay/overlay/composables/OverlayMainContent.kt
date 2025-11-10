@@ -37,9 +37,9 @@ fun OverlayMainContent(
     ) {
         val statCardModifier = Modifier.requiredWidth(StatCardWidth)
 
-        StatCard("Power", power, "watts", statCardModifier)
+        StatCard("Power", power, null, "watts", statCardModifier)
 
-        StatCard("Cadence", rpm, "rpm", statCardModifier)
+        StatCard("Cadence", rpm, null, "rpm", statCardModifier)
         val chartWidth = if (shrinkChart) {
             PowerChartShrunkWidth
         } else {
@@ -68,13 +68,13 @@ fun OverlayMainContent(
             fillColor = Color(android.graphics.Color.parseColor("#FF3348")),
             lineColor = Color(android.graphics.Color.parseColor("#D9182B")),
         )
-        StatCard("Resistance", resistance, "", statCardModifier)
+        StatCard("Resistance", resistance, null, "", statCardModifier)
 
-        StatCard("Speed", speed, speedLabel, statCardModifier.clickable {
+        StatCard("Speed", speed, null, speedLabel, statCardModifier.clickable {
             onSpeedClicked()
         })
 
-        StatCard("Calories", calories, "kcal", statCardModifier)
+        StatCard("Calories", calories, null, "kcal", statCardModifier)
 
     }
 }

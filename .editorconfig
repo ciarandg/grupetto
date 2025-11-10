@@ -1,0 +1,4 @@
+[*.{kt,kts}]
+ktlint_code_style = ktlint_official
+ktlint_standard_function-naming = disabled # Interferes with Jetpack Compose's convention of UpperCamel names for @Composable functions
+ktlint_standard_no-wildcard-imports = disabled # Wildcard imports are everywhere in this codebase because, will fix this eventually but it's low priority
