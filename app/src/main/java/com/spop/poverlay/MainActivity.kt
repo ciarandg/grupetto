@@ -167,11 +167,3 @@ fun MainComponent(viewModel: ConfigurationViewModel) {
         }
     }
 }
-
-@Preview(showBackground = true)
-@Composable
-fun DefaultPreview() {
-    PTONOverlayTheme {
-        // Preview placeholder - actual ConfigurationPage requires ViewModel
-    }
-}
