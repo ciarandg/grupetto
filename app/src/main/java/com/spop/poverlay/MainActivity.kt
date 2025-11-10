@@ -13,12 +13,26 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.result.contract.ActivityResultContracts.RequestMultiplePermissions
 import androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.List
+import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.NavigationRail
+import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.zIndex
 import androidx.core.text.HtmlCompat
 import androidx.lifecycle.lifecycleScope
 import com.spop.poverlay.releases.ReleaseChecker
@@ -28,7 +42,6 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-
 class MainActivity : ComponentActivity() {
     private lateinit var viewModel: ConfigurationViewModel
 
@@ -36,8 +49,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         viewModel =
             ConfigurationViewModel(
-                application, ConfigurationRepository(applicationContext, this),
-                ReleaseChecker()
+                application,
+                ConfigurationRepository(applicationContext, this),
+                ReleaseChecker(),
             )
         viewModel.finishActivity.observe(this) {
             finish()
@@ -52,20 +66,34 @@ class MainActivity : ComponentActivity() {
             restartGrupetto()
         }
         viewModel.infoPopup.observe(this) {
-            Toast.makeText(
-                this,
-                it,
-                Toast.LENGTH_LONG
-            ).show()
+            Toast
+                .makeText(
+                    this,
+                    it,
+                    Toast.LENGTH_LONG,
+                ).show()
         }
         setContent {
             PTONOverlayTheme {
-                Surface(
-                    modifier = Modifier.fillMaxSize(),
-                    color = MaterialTheme.colorScheme.background,
-                ) {
+                Row {
+                    NavigationRail {
+                        NavigationRailItem(
+                            selected = false,
+                            onClick = {},
+                            icon = {
+                                Icon(Icons.Filled.Home, "Configuration Page")
+                            },
+                        )
+                        NavigationRailItem(
+                            selected = false,
+                            onClick = {},
+                            icon = {
+                                Icon(Icons.Filled.List, "Workout Plans")
+                            },
+                        )
+                    }
                     ConfigurationPage(
-                        viewModel
+                        viewModel,
                     )
                 }
             }
@@ -81,12 +109,12 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun restartGrupetto() {
-        Toast.makeText(
-            this@MainActivity,
-            HtmlCompat.fromHtml("<big>Restarting Grupetto</big>", HtmlCompat.FROM_HTML_MODE_LEGACY),
-            Toast.LENGTH_LONG
-        )
-            .apply { setGravity(Gravity.CENTER, 0, 0) }
+        Toast
+            .makeText(
+                this@MainActivity,
+                HtmlCompat.fromHtml("<big>Restarting Grupetto</big>", HtmlCompat.FROM_HTML_MODE_LEGACY),
+                Toast.LENGTH_LONG,
+            ).apply { setGravity(Gravity.CENTER, 0, 0) }
             .show()
 
         CoroutineScope(Dispatchers.IO).launch {
@@ -103,7 +131,7 @@ class MainActivity : ComponentActivity() {
         registerForActivityResult(StartActivityForResult()) {
             if (Build.VERSION.SDK_INT >= 23) {
                 viewModel.onOverlayPermissionRequestCompleted(
-                    Settings.canDrawOverlays(this)
+                    Settings.canDrawOverlays(this),
                 )
             }
         }
@@ -114,18 +142,18 @@ class MainActivity : ComponentActivity() {
             viewModel.onBluetoothPermissionsResult(allGranted)
         }
 
-    private fun requestScreenPermission() = Intent(
-        "android.settings.action.MANAGE_OVERLAY_PERMISSION",
-        Uri.parse("package:${packageName}")
-    ).apply {
-        overlayPermissionRequest.launch(this)
-    }
+    private fun requestScreenPermission() =
+        Intent(
+            "android.settings.action.MANAGE_OVERLAY_PERMISSION",
+            Uri.parse("package:$packageName"),
+        ).apply {
+            overlayPermissionRequest.launch(this)
+        }
 
     private fun requestBluetoothPermissions(permissions: Array<String>) {
         bluetoothPermissionRequest.launch(permissions)
     }
 }
-
 
 @Preview(showBackground = true)
 @Composable
