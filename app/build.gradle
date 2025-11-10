@@ -6,12 +6,12 @@ plugins {
 
 android {
     namespace 'com.spop.poverlay'
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId "com.spop.poverlay"
         minSdk 21
-        targetSdk 35
+        targetSdk 36
         versionCode 15
         versionName "v0.0.13"
 
