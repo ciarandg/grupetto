@@ -20,8 +20,10 @@ fun OverlayMainContent(
     rowAlignment: Alignment.Vertical,
     power: String,
     rpm: String,
+    targetRpm: String?,
     powerGraph: List<Float>,
     resistance: String,
+    targetResistance: String?,
     speed: String,
     speedLabel: String,
     calories: String,
@@ -37,9 +39,9 @@ fun OverlayMainContent(
     ) {
         val statCardModifier = Modifier.requiredWidth(StatCardWidth)
 
-        StatCard("Power", power, "watts", statCardModifier)
+        StatCard("Power", power, null, "watts", statCardModifier)
 
-        StatCard("Cadence", rpm, "rpm", statCardModifier)
+        StatCard("Cadence", rpm, targetRpm, "rpm", statCardModifier)
         val chartWidth = if (shrinkChart) {
             PowerChartShrunkWidth
         } else {
@@ -68,13 +70,13 @@ fun OverlayMainContent(
             fillColor = Color(android.graphics.Color.parseColor("#FF3348")),
             lineColor = Color(android.graphics.Color.parseColor("#D9182B")),
         )
-        StatCard("Resistance", resistance, "", statCardModifier)
+        StatCard("Resistance", resistance, targetResistance, "", statCardModifier)
 
-        StatCard("Speed", speed, speedLabel, statCardModifier.clickable {
+        StatCard("Speed", speed, null, speedLabel, statCardModifier.clickable {
             onSpeedClicked()
         })
 
-        StatCard("Calories", calories, "kcal", statCardModifier)
+        StatCard("Calories", calories, null, "kcal", statCardModifier)
 
     }
 }
@@ -88,8 +90,10 @@ fun OverlayMainContentPreview() {
             rowAlignment = Alignment.Top,
             power = "80",
             rpm = "105",
+            targetRpm = null,
             powerGraph = List(100) { kotlin.random.Random.nextFloat() * 250f }, // TODO: haven't been able to get the graph to render in preview yet
             resistance = "33",
+            targetResistance = null,
             speed = "14.8",
             speedLabel = "mph",
             calories = "35",
