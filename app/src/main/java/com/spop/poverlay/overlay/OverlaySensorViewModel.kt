@@ -6,6 +6,8 @@ import androidx.compose.runtime.mutableStateListOf
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.spop.poverlay.MainActivity
+import com.spop.poverlay.WorkoutPlan
+import com.spop.poverlay.WorkoutPlanState
 import com.spop.poverlay.sensor.DeadSensorDetector
 import com.spop.poverlay.sensor.interfaces.SensorInterface
 import com.spop.poverlay.util.smoothSensorValue
@@ -38,6 +40,24 @@ private const val MphToKph = 1.60934
  */
 private const val CyclingEfficiency = 0.22 // 22% efficiency (typical for cycling)
 private const val CaloriesPerJoule = 4184.0 // Joules per kcal (thermochemical calorie definition)
+
+// TODO don't hardcode
+private val workoutPlan = WorkoutPlan.build(
+    WorkoutPlanState(
+        targetRpm = 10,
+        targetResistance = 100,
+    ),
+    entries = listOf(
+        Pair(10L, WorkoutPlanState(
+            targetRpm = 20,
+            targetResistance = 200,
+        )),
+        Pair(2L * 10L, WorkoutPlanState(
+            targetRpm = 30,
+            targetResistance = 300,
+        )),
+    )
+)
 
 class OverlaySensorViewModel(
     application: Application,
@@ -125,6 +145,8 @@ class OverlaySensorViewModel(
     // Calculate calories burned by accumulating energy over time
     // Calories (kcal) = Total Energy (Joules) / 4184 / Efficiency
     private val accumulatedEnergy = MutableStateFlow(0.0)
+
+    val currentWorkoutPlanState: MutableStateFlow<WorkoutPlanState?> = MutableStateFlow(null)
     
     val caloriesValue = accumulatedEnergy.map { totalJoules ->
         val calories = totalJoules / CaloriesPerJoule / CyclingEfficiency
@@ -159,6 +181,14 @@ class OverlaySensorViewModel(
         }
     }
 
+    private fun setupWorkoutPlan() {
+        viewModelScope.launch(Dispatchers.IO) {
+            timerViewModel.elapsedSeconds.collect { elapsedSeconds ->
+                currentWorkoutPlanState.value = workoutPlan.stateAt(elapsedSeconds)
+            }
+        }
+    }
+
     val powerGraph = mutableStateListOf<Float>()
 
 
@@ -181,6 +211,7 @@ class OverlaySensorViewModel(
 
     // Happens last to ensure initialization order is correct
     init {
+        setupWorkoutPlan()
         setupPowerGraphData()
         setupCaloriesAccumulation()
         
