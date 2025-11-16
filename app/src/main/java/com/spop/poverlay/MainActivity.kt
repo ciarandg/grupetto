@@ -141,7 +141,9 @@ enum class Destination(
     WORKOUT_PLANS(
         icon = Icons.Filled.List,
         iconDescription = "Workout Plans Page",
-        renderPage = {},
+        renderPage = {
+            WorkoutPlansPage()
+        },
     ),
 }
 
